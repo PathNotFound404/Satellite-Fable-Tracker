@@ -73,8 +73,8 @@ src/
 1. **Load:** `useSatellites` fetches `/data/satellites.json` once, checks `schemaVersion`, and builds `satrec`s from the OMM records. Records that fail to parse are dropped and counted.
 2. **Index:** keep satellites in plain arrays indexed by a stable position `i`. That index is shared by the satrec array, the position buffer, the filter mask and picking. Groups are resolved to index sets once.
 3. **Clock:** `useSimClock` is the single source of simulation time (real time at 1x until time controls land).
-4. **Propagate:** for each satellite, `propagate(satrec, simTime)` → TEME position (km) → ECF via GMST → scene units → written into the shared `Float32Array`. Failures hide that point (see below).
-5. **Render:** one `THREE.Points` with a `BufferGeometry` whose position attribute uses that array. Set `needsUpdate` once per update.
+4. **Propagate:** each frame, a slice of the catalog (sized so every satellite is refreshed about once a second) goes through `propagateEcf(satrec, simTime)`: TEME state (km, km/s) → ECF via GMST → scene units → written into shared `Float32Array`s for position, velocity and the time they were computed. Failures hide that point (see below).
+5. **Render:** one `THREE.Points` whose vertex shader draws each point at `position + velocity * (now - time0)`, so motion is smooth between refreshes. Only the refreshed slice is uploaded.
 6. **Select:** a click is raycast against the points; the hit index maps back to the satellite. The info panel reads altitude, speed and inclination from `orbital/` helpers for that one satellite.
 
 ## Frames, units and constants
@@ -95,18 +95,14 @@ Because positions are converted to ECF, the Earth mesh does not rotate with time
 
 ## Propagation strategy (decided in M3)
 
-The starting point is to propagate every satellite on the main thread, writing into a reused `Float32Array`. In M3 we measure frame time with the full catalog. If propagation costs too much of the 16.6 ms frame budget, the options in order of preference:
-
-1. **Lower-rate propagation with interpolation:** propagate each satellite at, e.g., 1–4 Hz (spread across frames) and interpolate positions between samples.
-2. **Web Worker:** move propagation to a worker, transferring a typed array each tick.
-
-The result goes in `docs/adr/0002-propagation-strategy.md`.
+Measured in M3: a full SGP4 pass over the 16,895-satellite catalog takes about 26 ms, more than a frame. So each satellite is re-propagated about once a second on the main thread, a slice per frame (about 0.45 ms), and the vertex shader extrapolates along the Earth-fixed velocity in between. Details, numbers and the alternatives (Web Worker, WASM bulk propagator) are in [ADR 0002](adr/0002-propagation-strategy.md).
 
 ## Invalid and decayed satellites
 
 - satellite.js can return `false` or a position containing `NaN` for decayed or bad elements.
-- Such satellites are marked invalid: their point is moved out of view (or masked in the shader), never left at the origin or the last good position.
-- They're excluded from search results and counted in a debug readout.
+- A result more than 100 km below the surface is treated the same way (SGP4 can keep producing numbers for an object that has re-entered).
+- Such satellites are marked invalid: their point is masked in the shader (moved outside the clip volume), never left at the origin or the last good position.
+- They're excluded from search results and counted in a debug readout (add `?debug` to the URL).
 
 ## Picking
 
@@ -115,7 +111,7 @@ The result goes in `docs/adr/0002-propagation-strategy.md`.
 
 ## Accuracy and data age
 
-- GP/SGP4 accuracy is on the order of a kilometer at epoch and degrades over days. The UI never shows more than 1 decimal place of km and never implies sub-kilometer accuracy.
+- GP/SGP4 accuracy is on the order of a kilometer at epoch and degrades over days. On top of that, the app uses UTC as UT1 (up to about 0.45 km east-west at low orbit) and ignores polar motion (about 15 m); see `src/orbital/frames.ts`. The UI never shows more than 1 decimal place of km and never implies sub-kilometer accuracy.
 - `DataAgeBadge` shows the age from `generatedAt`. Above 24 hours old it shows a warning (the pipeline is probably failing).
 - Each record's own `EPOCH` can be older than `generatedAt`. The info panel shows the epoch.
 

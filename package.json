@@ -14,7 +14,7 @@
     "prebuild": "node scripts/pull-live-data.ts",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json && vue-tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint .",
     "fetch-data": "node scripts/fetch-data.ts"
   },
