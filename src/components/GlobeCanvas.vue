@@ -7,6 +7,8 @@ const emit = defineEmits<{
   ready: [scene: GlobeScene]
   /** The user dragged or zoomed for the first time. */
   interact: []
+  /** A click or tap (not a drag). Coordinates are CSS pixels relative to the canvas. */
+  pick: [point: { x: number; y: number; width: number; height: number; isTouch: boolean }]
 }>()
 
 const canvas = ref<HTMLCanvasElement | null>(null)
@@ -30,6 +32,33 @@ onMounted(() => {
   }
 })
 
+// A press that moves less than this before release is a click, not a drag.
+const CLICK_MOVE_TOLERANCE_PX = 6
+let pressX = 0
+let pressY = 0
+let pressed = false
+
+function onPointerDown(event: PointerEvent): void {
+  if (!event.isPrimary || event.button !== 0) return
+  pressed = true
+  pressX = event.clientX
+  pressY = event.clientY
+}
+
+function onPointerUp(event: PointerEvent): void {
+  if (!pressed || !event.isPrimary) return
+  pressed = false
+  if (Math.hypot(event.clientX - pressX, event.clientY - pressY) > CLICK_MOVE_TOLERANCE_PX) return
+  const rect = (event.currentTarget as HTMLCanvasElement).getBoundingClientRect()
+  emit('pick', {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+    width: rect.width,
+    height: rect.height,
+    isTouch: event.pointerType !== 'mouse',
+  })
+}
+
 onBeforeUnmount(() => {
   globeScene?.dispose()
   globeScene = null
@@ -42,7 +71,10 @@ onBeforeUnmount(() => {
       v-show="!webglFailed"
       ref="canvas"
       class="globe__canvas"
-      aria-label="Interactive 3D globe. Drag to rotate, scroll or pinch to zoom."
+      aria-label="Interactive 3D globe. Drag to rotate, scroll or pinch to zoom, click a satellite to select it."
+      @pointerdown="onPointerDown"
+      @pointerup="onPointerUp"
+      @pointercancel="pressed = false"
     ></canvas>
     <div v-if="webglFailed" class="globe__fallback glass" role="alert">
       <h2>3D graphics are unavailable</h2>
