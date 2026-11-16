@@ -4,6 +4,9 @@ export const EARTH_RADIUS_KM = 6378.137
 /** Earth's rotation rate (WGS84). Radians per second of UT1. */
 export const EARTH_ROTATION_RAD_S = 7.292115e-5
 
+/** Earth's gravitational parameter (WGS84), km³/s². */
+export const EARTH_MU_KM3_S2 = 398600.4418
+
 /** Julian date of the Unix epoch, 1970-01-01T00:00:00Z. */
 export const UNIX_EPOCH_JULIAN_DATE = 2440587.5
 

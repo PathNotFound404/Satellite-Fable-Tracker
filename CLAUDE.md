@@ -102,7 +102,8 @@ These are the easiest places to introduce subtle bugs. Be careful.
 - Handle propagation failures: `satellite.js` returns `false` for decayed or invalid satellites. Skip them without crashing and without leaving a bad point on screen.
 - TLE accuracy degrades over days. Show the data's `generatedAt` age in the UI and never imply sub-kilometer accuracy.
 - Import only satellite.js's plain-JS API (`sgp4`, `json2satrec`, `gstime`, ...). Its WebAssembly builds are stubbed out in `vite.config.ts` and are not available at runtime (ADR 0002).
-- Positions on screen are extrapolated in the vertex shader between SGP4 refreshes. Anything that needs "where is satellite i right now" (picking, panel, camera) must go through `satelliteLayer.getScenePosition` or a fresh `propagateTeme`/`propagateEcf` call, never the raw position buffer.
+- Never call `Date.now()` to decide where a satellite is. Simulation time comes from `useSimClock` (`clock.nowMs()`), which the time controls can pause, speed up and reverse.
+- Positions on screen are extrapolated in the vertex shader between SGP4 refreshes (`three/extrapolation.ts` has the formula twice, GLSL and CPU; change both together). Anything that needs "where is satellite i right now" (picking, panel, camera) must go through `satelliteLayer.getScenePosition` or a fresh `propagateTeme`/`propagateEcf` call, never the raw position buffer.
 - Add tests with known-good reference values (for example published SGP4 test vectors or a known ISS position) rather than tests that only re-run the same code.
 
 ## Performance targets
