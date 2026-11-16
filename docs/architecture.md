@@ -93,6 +93,10 @@ These rules exist because frame and unit bugs are silent.
 
 Because positions are converted to ECF, the Earth mesh does not rotate with time; the satellites move relative to it.
 
+## Day and night
+
+`orbital/sun.ts` gives the Sun's direction in the Earth-fixed frame (satellite.js's low-precision solar position, rotated by GMST like everything else). `useSunlight` recomputes it whenever simulation time has moved 20 s and hands it to the globe, whose standard material has a few lines added to its fragment shader: brightness is scaled between a night level and full by the cosine of the Sun angle, with a soft band about 7 degrees either side of the terminator. No second mesh, light or draw call. The camera-mounted light still provides the base shading, so relief reads the same from any angle.
+
 ## Propagation strategy (decided in M3)
 
 Measured in M3: a full SGP4 pass over the 16,895-satellite catalog takes about 26 ms, more than a frame. So each satellite is re-propagated about once a second on the main thread, a slice per frame (about 0.45 ms), and the vertex shader extrapolates in between from the Earth-fixed position and velocity, with gravity and rotating-frame terms so it stays accurate when the clock runs fast (`three/extrapolation.ts`). Details, numbers and the alternatives (Web Worker, WASM bulk propagator) are in [ADR 0002](adr/0002-propagation-strategy.md).

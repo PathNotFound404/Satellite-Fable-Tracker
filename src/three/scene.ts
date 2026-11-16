@@ -48,6 +48,8 @@ export interface GlobeScene {
   readonly controls: OrbitControls
   /** Register work to run every frame before rendering. Returns an unsubscribe function. */
   onFrame(callback: FrameCallback): () => void
+  /** Unit vector toward the Sun in scene axes; sets which side of the globe is lit. */
+  setSunDirection(x: number, y: number, z: number): void
   /** Swing the camera round to look at a scene position (for example a satellite). */
   flyTo(scenePosition: Vector3): void
   dispose(): void
@@ -73,8 +75,8 @@ export function createGlobeScene(
   camera.position.setLength(CAMERA_START_DISTANCE)
   scene.add(camera)
 
-  // Until day/night shading lands (M6), light rides with the camera so the visible
-  // hemisphere is always evenly lit, like a product shot.
+  // Light rides with the camera so relief and colour read the same from any angle;
+  // which side is day or night is decided separately, in the globe's shader.
   const keyLight = new DirectionalLight(0xffffff, 2.6)
   keyLight.position.set(-1.2, 1.4, 2.2)
   camera.add(keyLight)
@@ -161,6 +163,7 @@ export function createGlobeScene(
         if (index !== -1) frameCallbacks.splice(index, 1)
       }
     },
+    setSunDirection: globe.setSunDirection,
     flyTo(scenePosition) {
       controls.autoRotate = false
       const distance = Math.min(

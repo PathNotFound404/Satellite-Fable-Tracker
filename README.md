@@ -17,7 +17,7 @@ Built in milestones, each one demoable ([roadmap](docs/roadmap.md)).
 | 3 | Propagate and plot | Done: full catalog moving in real time |
 | 4 | Select, info panel, orbit | Done: click a satellite for live stats and its orbit |
 | 5 | Search and filters | Done: search by name or NORAD ID, group filters with counts |
-| 6 | Stretch features | Time controls done; day/night shading next |
+| 6 | Stretch features | Time controls and day/night shading done; ground track next |
 | 7 | Polish and README | Not started |
 
 ## Using it
@@ -27,6 +27,7 @@ Built in milestones, each one demoable ([roadmap](docs/roadmap.md)).
 - Search by name or NORAD ID (press `/` to jump to the search field); choosing a result selects the satellite and swings the camera round to it.
 - Filter to space stations, Starlink, GPS or weather satellites.
 - Pause, fast-forward (up to 1000x) or run time backwards with the bar at the bottom; Space toggles pause, and "Back to now" returns to live.
+- The globe shows day and night for the simulated time, so fast-forwarding sweeps the terminator round the Earth.
 - Link straight to a satellite with `?sat=<NORAD ID>`, for example `?sat=25544` for the ISS.
 - Add `?debug` for a frame rate and propagation cost readout.
 
