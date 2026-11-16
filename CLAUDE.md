@@ -44,8 +44,11 @@ Package manager: npm. Update this table whenever scripts change.
 | Type check | `npm run typecheck` |
 | Lint | `npm run lint` |
 | Fetch data locally | `npm run fetch-data` |
+| Regenerate `sample.json` (offline) | `node scripts/make-sample.ts` |
 
 Before calling any task done, `typecheck`, `lint`, `test` and `build` must all pass.
+
+`scripts/` runs directly on Node 24 (built-in TypeScript type stripping, no runner dependency). Use erasable syntax only (no enums or parameter properties) and import with `.ts` extensions there. `predev` and `prebuild` run `scripts/pull-live-data.ts`.
 
 ## Repo layout
 

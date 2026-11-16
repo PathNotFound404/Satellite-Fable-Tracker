@@ -1,8 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import DataAgeBadge from './components/DataAgeBadge.vue'
 import GlobeCanvas from './components/GlobeCanvas.vue'
+import { useSatellites } from './composables/useSatellites'
 
 const showHint = ref(true)
+const { file, status, errorMessage } = useSatellites()
+
+const countFormat = new Intl.NumberFormat()
+const subtitle = computed(() =>
+  file.value === null
+    ? 'Live orbital data on a 3D globe'
+    : `${countFormat.format(file.value.count)} satellites`,
+)
 </script>
 
 <template>
@@ -11,8 +21,16 @@ const showHint = ref(true)
 
     <header class="app__title glass">
       <h1>Satellite Tracker</h1>
-      <p>Live orbital data on a 3D globe</p>
+      <p class="numeric">{{ subtitle }}</p>
     </header>
+
+    <div class="app__status">
+      <DataAgeBadge
+        :status="status"
+        :generated-at="file?.generatedAt ?? null"
+        :error-message="errorMessage"
+      />
+    </div>
 
     <Transition name="fade">
       <p v-if="showHint" class="app__hint glass">Drag to rotate · Scroll to zoom</p>
@@ -46,6 +64,12 @@ const showHint = ref(true)
   margin: 0;
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
+}
+
+.app__status {
+  position: absolute;
+  top: var(--inset-top);
+  right: var(--inset-right);
 }
 
 .app__hint {

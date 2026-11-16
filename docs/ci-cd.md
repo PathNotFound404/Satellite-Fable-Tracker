@@ -79,7 +79,7 @@ On `main`: require a PR, require the `ci` check to pass, no force pushes. Set th
 
 - **Production:** every push to `main`.
 - **Preview:** every PR, with the preview URL posted on the PR.
-- **Build command:** `npm run build`. A `prebuild` script runs `pull-live-data`, which downloads `https://<production-url>/data/satellites.json` into `public/data/` if the file doesn't already exist, else falls back to `sample.json`.
+- **Build command:** `npm run build`. A `prebuild` script runs `pull-live-data`, which downloads `https://<production-url>/data/satellites.json` into `public/data/` if the file doesn't already exist, else falls back to `sample.json`. The production URL comes from `PRODUCTION_URL` if set, otherwise from `VERCEL_PROJECT_PRODUCTION_URL`, which Vercel provides to its own builds (keep "Automatically expose System Environment Variables" on in the Vercel project settings).
 - **Ignored files:** `public/data/satellites.json` is in `.gitignore`.
 
 ---
@@ -87,7 +87,7 @@ On `main`: require a PR, require the `ci` check to pass, no force pushes. Set th
 ## `data-refresh.yml`: data refresh workflow
 
 **Triggers:**
-- `schedule: cron: '23 */6 * * *'` (every 6 hours at minute 23, avoiding the busy top of the hour; GitHub may delay scheduled runs)
+- `schedule: cron: '23 */6 * * *'` (every 6 hours at minute 23, avoiding the busy top of the hour; GitHub may delay scheduled runs). **The schedule is commented out in the workflow file until the secrets below exist,** so it doesn't fail every 6 hours in the meantime.
 - `workflow_dispatch` (manual run, still subject to the freshness guard)
 
 **Settings:**
@@ -106,23 +106,24 @@ On `main`: require a PR, require the `ci` check to pass, no force pushes. Set th
 
 **Steps:**
 
-1. **Setup:** checkout, Node from `.nvmrc`, `npm ci`.
-2. **Freshness guard:** download the live `satellites.json`. If its `generatedAt` is less than 2 hours old, end the run as skipped. If the live file is missing (first ever run), continue.
-3. **Fetch** (`npm run fetch-data`): request `active`, `stations`, `gps-ops`, `weather` one at a time.
+1. **Check configuration:** fail immediately if any secret or variable above is missing, before anything is downloaded.
+2. **Setup:** checkout, Node from `.nvmrc`, `npm ci`.
+3. **Freshness guard** (inside `npm run fetch-data`, so local runs are protected too): if a `satellites.json` already on disk, or the live one, has a `generatedAt` less than 2 hours old, end the run as skipped. If the live file is missing (first ever run) or unreachable, continue without the count comparison.
+4. **Fetch** (same script): request `active`, `stations`, `gps-ops`, `weather` one at a time.
    - The "not updated since your last download" 403 → stop, skip (warning), success exit, no deploy.
    - Any other non-200 → stop, fail the run, no deploy.
-4. **Validate** against [data contract](data-contract.md#validation), including comparing record count with the live file. Failure → fail the run, no deploy.
-5. **Write** `public/data/satellites.json`.
-6. **Build and deploy:**
+5. **Validate** against [data contract](data-contract.md#validation), including comparing record count with the live file. Failure → fail the run, no deploy.
+6. **Write** `public/data/satellites.json` (temp file, then rename). The script sets the step output `status` to `fetched` or `skipped`; the steps below only run on `fetched`.
+7. **Build and deploy** (Vercel CLI run with `npx vercel@<pinned major>`, not added to `package.json`):
    ```
    vercel pull --yes --environment=production --token=$VERCEL_TOKEN
    vercel build --prod --token=$VERCEL_TOKEN
    vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
    ```
    `pull-live-data` sees the fresh file and skips.
-7. **Artifact:** upload `satellites.json` as a workflow artifact (7-day retention) for debugging.
+8. **Artifact:** upload `satellites.json` as a workflow artifact (7-day retention) for debugging.
 
-**Failure behavior:** any failure before step 6 means nothing is deployed and production keeps the last good data. The app's data-age badge turns to a warning after 24 hours.
+**Failure behavior:** any failure before step 7 means nothing is deployed and production keeps the last good data. The app's data-age badge turns to a warning after 24 hours.
 
 ---
 
