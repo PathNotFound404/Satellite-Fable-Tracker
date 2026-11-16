@@ -13,7 +13,7 @@ Built in milestones, each one demoable ([roadmap](docs/roadmap.md)).
 | # | Milestone | State |
 |---|---|---|
 | 1 | Scaffold, globe, CI, deploy | Globe and CI done; deploy pending |
-| 2 | Data pipeline | Not started |
+| 2 | Data pipeline | Fetch, validation and refresh workflow done; scheduled deploys pending Vercel setup |
 | 3 | Propagate and plot | Not started |
 | 4 | Select, info panel, orbit | Not started |
 | 5 | Search and filters | Not started |
@@ -40,6 +40,8 @@ npm run dev
 | Unit tests | `npm test` |
 | Type check | `npm run typecheck` |
 | Lint | `npm run lint` |
+
+The dev server and build use `public/data/sample.json` (50 satellites) unless a full `public/data/satellites.json` exists. `npm run fetch-data` downloads the full catalog from CelesTrak; please read [CelesTrak fair use](docs/ci-cd.md#celestrak-fair-use) first, since each run counts against your IP.
 
 ## Docs
 

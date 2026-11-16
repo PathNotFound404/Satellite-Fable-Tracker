@@ -61,7 +61,7 @@ CelesTrak GP data, queried as `https://celestrak.org/NORAD/elements/gp.php?GROUP
 
 - **Satellite records keep CelesTrak's OMM field names unchanged,** so they can go straight to satellite.js's OMM parser (confirm the exact function name for the installed satellite.js version in M3) and stay comparable with the source. Only the fields above are kept; others are dropped to save size.
 - **Units are OMM's:** `MEAN_MOTION` in revolutions/day, angles in degrees, `EPOCH` in UTC without a `Z` suffix (parse as UTC).
-- **`NORAD_CAT_ID` is the unique key.** Treat it as a number. (CelesTrak warns 5-digit catalog numbers are running out; if alpha-5 or larger IDs appear, bump `schemaVersion`.)
+- **`NORAD_CAT_ID` is the unique key.** Treat it as a number. 6-digit catalog numbers (above 99999) already appear in CelesTrak's JSON as plain numbers and need no special handling here: alpha-5 encoding only exists in the fixed-width TLE text format, which we don't use.
 
 ### Groups
 
