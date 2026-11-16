@@ -123,6 +123,12 @@ Proposed order, easiest and most visible first. Reorder freely.
    - [x] No extra draw calls: the shading is added to the Earth material's shader.
    - [ ] No measurable frame rate cost (to confirm on real hardware with `?debug`).
 3. **Ground track:** selected satellite's track on the globe surface.
+
+   Acceptance criteria (agreed 2026-11-16):
+   - [x] The track of the selected satellite is drawn on the globe surface for one orbit behind and one ahead.
+   - [x] It passes directly under the satellite's current position (unit-tested within 1 km as time runs).
+   - [x] It follows simulation time and updates when the selection changes.
+   - [x] It is visually distinct from the orbit line (dashed and neutral, against the solid accent-coloured orbit).
 4. **Next-pass predictor:** browser geolocation (with a manual fallback), next passes over the next 24 hours with rise, peak elevation and set times. Tested against an independent pass prediction for a known location and data set.
 5. **Conjunction highlighting:** flag close approaches below a threshold. Clearly labeled as approximate (GP data is not suitable for real collision assessment).
 

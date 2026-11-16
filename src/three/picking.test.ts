@@ -129,10 +129,15 @@ describe('pickSatellite', () => {
     const click = toScreen(points[target]!, camera)
     const pickSource = source(points)
 
-    pickSatellite(pickSource, count, camera, WIDTH, HEIGHT, click.x, click.y, 4)
-    const start = performance.now()
-    const picked = pickSatellite(pickSource, count, camera, WIDTH, HEIGHT, click.x, click.y, 4)
-    const elapsedMs = performance.now() - start
+    // Best of several runs: other test files run in parallel and can steal the CPU
+    // for any single measurement.
+    let picked = -1
+    let elapsedMs = Infinity
+    for (let run = 0; run < 10; run++) {
+      const start = performance.now()
+      picked = pickSatellite(pickSource, count, camera, WIDTH, HEIGHT, click.x, click.y, 4)
+      elapsedMs = Math.min(elapsedMs, performance.now() - start)
+    }
 
     expect(picked).toBe(target)
     // "Within one frame or so": generous bound so slow CI machines don't flake.
