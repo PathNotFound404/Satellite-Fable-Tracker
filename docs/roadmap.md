@@ -105,6 +105,15 @@ Get real orbital data onto the live site without the browser ever calling CelesT
 Proposed order, easiest and most visible first. Reorder freely.
 
 1. **Time controls:** pause, speed up (e.g. 1x to 1000x), rewind, back to now. Built on the M3 simulation clock.
+
+   Acceptance criteria (agreed 2026-11-16):
+   - [x] A control bar with pause/play, speed steps (1x, 10x, 100x, 1000x), reverse, and a button that returns to real time at 1x.
+   - [x] The current simulation date and time are always shown (UTC), with a clear indicator when it is live and when it is not.
+   - [x] Satellites, the info panel and the orbit line all follow simulation time.
+   - [x] At 1000x, positions stay within 5 km of direct SGP4 (unit-tested, forwards and in reverse).
+   - [ ] The app holds 60fps at 1000x on a mid-range laptop (to confirm on real hardware with `?debug`).
+   - [x] Time is limited to 7 days either side of the data and the present, stopping at the edge, with a warning beyond 2 days from the data.
+   - [x] Space toggles pause.
 2. **Day/night shading:** terminator from the sun position at simulation time.
 3. **Ground track:** selected satellite's track on the globe surface.
 4. **Next-pass predictor:** browser geolocation (with a manual fallback), next passes over the next 24 hours with rise, peak elevation and set times. Tested against an independent pass prediction for a known location and data set.

@@ -7,6 +7,7 @@ import GlobeCanvas from './components/GlobeCanvas.vue'
 import GroupFilter from './components/GroupFilter.vue'
 import InfoPanel from './components/InfoPanel.vue'
 import SearchBox, { type SearchResult } from './components/SearchBox.vue'
+import TimeControls from './components/TimeControls.vue'
 import { groupLabelsFor } from './composables/groups'
 import { buildSearchIndex, searchCatalog } from './composables/search'
 import { useFilters } from './composables/useFilters'
@@ -15,6 +16,7 @@ import { useSatellites } from './composables/useSatellites'
 import { useSelection } from './composables/useSelection'
 import { useSelectionVisuals } from './composables/useSelectionVisuals'
 import { useTelemetry } from './composables/useTelemetry'
+import { useTimeControls } from './composables/useTimeControls'
 import { pickSatellite } from './three/picking'
 import type { GlobeScene } from './three/scene'
 
@@ -30,6 +32,9 @@ useSelectionVisuals(globeScene, catalog, layer, selectedIndex)
 const { telemetry, available: telemetryAvailable } = useTelemetry(catalog, selectedIndex)
 
 const { activeFilter, options: filterOptions, passes, setFilter } = useFilters(catalog, layer, trackedCount)
+
+const generatedAt = computed(() => file.value?.generatedAt ?? null)
+const timeControls = useTimeControls(generatedAt)
 
 const selectedRecord = computed(() =>
   selectedIndex.value === null ? null : (catalog.value?.records[selectedIndex.value] ?? null),
@@ -112,7 +117,18 @@ if (Number.isInteger(linkedNoradId) && linkedNoradId > 0) {
 }
 
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') clear()
+  if (event.key === 'Escape') {
+    clear()
+    return
+  }
+  // Space toggles pause, unless it belongs to a field or control that has focus.
+  if (event.key === ' ' && !event.repeat) {
+    const target = event.target as HTMLElement | null
+    const tag = target?.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT') return
+    event.preventDefault()
+    timeControls.togglePause()
+  }
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
@@ -174,6 +190,21 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
       />
     </div>
 
+    <div class="app__time">
+      <TimeControls
+        :time-ms="timeControls.simTimeMs.value"
+        :live="timeControls.live.value"
+        :paused="timeControls.paused.value"
+        :speed="timeControls.speed.value"
+        :reversed="timeControls.reversed.value"
+        :notice="timeControls.notice.value"
+        @toggle-pause="timeControls.togglePause"
+        @toggle-reverse="timeControls.toggleReverse"
+        @set-speed="timeControls.setSpeed"
+        @go-live="timeControls.goLive"
+      />
+    </div>
+
     <DebugReadout v-if="showDebug" class="app__debug" :stats="stats" />
 
     <Transition name="fade">
@@ -188,6 +219,10 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
 .app {
   position: relative;
   height: 100%;
+  /* Room the time bar takes along the bottom edge; other bottom-anchored things sit
+     above it. */
+  --time-bar-space: 56px;
+  --above-time-bar: calc(var(--inset-bottom) + var(--time-bar-space));
 }
 
 /* Overlay containers ignore the pointer so the globe stays draggable between panels;
@@ -196,7 +231,7 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
   position: absolute;
   top: var(--inset-top);
   left: var(--inset-left);
-  bottom: var(--inset-bottom);
+  bottom: var(--above-time-bar);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -250,15 +285,26 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
   right: var(--inset-right);
 }
 
+.app__time {
+  position: absolute;
+  bottom: var(--inset-bottom);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  width: max-content;
+  max-width: calc(100% - var(--inset-left) - var(--inset-right));
+}
+
 .app__debug {
   position: absolute;
   right: var(--inset-right);
-  bottom: var(--inset-bottom);
+  bottom: var(--above-time-bar);
 }
 
 .app__hint {
   position: absolute;
-  bottom: var(--inset-bottom);
+  bottom: var(--above-time-bar);
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
@@ -298,24 +344,28 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
 @media (max-width: 1080px) {
   .app__filter {
     top: auto;
-    bottom: var(--inset-bottom);
+    bottom: var(--above-time-bar);
   }
 
-  .app__hint {
-    bottom: calc(var(--inset-bottom) + 48px);
-  }
-
-  .app__debug {
-    bottom: calc(var(--inset-bottom) + 48px);
-  }
-
+  .app__hint,
+  .app__debug,
   .app__left {
-    bottom: calc(var(--inset-bottom) + 48px);
+    bottom: calc(var(--above-time-bar) + 48px);
   }
 }
 
 /* Phones: full-width search, and the panel becomes a sheet above the filter. */
 @media (max-width: 600px) {
+  /* The time bar wraps onto two rows. */
+  .app {
+    --time-bar-space: 92px;
+  }
+
+  /* Too many things along the bottom edge already. */
+  .app__hint {
+    display: none;
+  }
+
   .app__left {
     right: var(--inset-right);
     align-items: stretch;

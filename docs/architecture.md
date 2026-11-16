@@ -72,7 +72,7 @@ src/
 
 1. **Load:** `useSatellites` fetches `/data/satellites.json` once, checks `schemaVersion`, and builds `satrec`s from the OMM records. Records that fail to parse are dropped and counted.
 2. **Index:** keep satellites in plain arrays indexed by a stable position `i`. That index is shared by the satrec array, the position buffer, the filter mask and picking. Groups are resolved to index sets once.
-3. **Clock:** `useSimClock` is the single source of simulation time (real time at 1x until time controls land).
+3. **Clock:** `useSimClock` is the single source of simulation time. `useTimeControls` drives it from the UI (pause, 1x to 1000x, reverse, back to now) and keeps it within 7 days of the data and the present.
 4. **Propagate:** each frame, a slice of the catalog (sized so every satellite is refreshed about once a second) goes through `propagateEcf(satrec, simTime)`: TEME state (km, km/s) → ECF via GMST → scene units → written into shared `Float32Array`s for position, velocity and the time they were computed. Failures hide that point (see below).
 5. **Render:** one `THREE.Points` whose vertex shader draws each point at `position + velocity * (now - time0)`, so motion is smooth between refreshes. Only the refreshed slice is uploaded.
 6. **Select:** a click is matched to the nearest drawn point in screen space; the hit index maps back to the satellite. The info panel reads altitude, speed and ground position from `orbital/` helpers for that one satellite four times a second. The orbit line is one period sampled in the inertial frame (a closed ellipse), rotated about the polar axis each frame as the Earth turns and re-sampled every 20 s.
@@ -95,7 +95,7 @@ Because positions are converted to ECF, the Earth mesh does not rotate with time
 
 ## Propagation strategy (decided in M3)
 
-Measured in M3: a full SGP4 pass over the 16,895-satellite catalog takes about 26 ms, more than a frame. So each satellite is re-propagated about once a second on the main thread, a slice per frame (about 0.45 ms), and the vertex shader extrapolates along the Earth-fixed velocity in between. Details, numbers and the alternatives (Web Worker, WASM bulk propagator) are in [ADR 0002](adr/0002-propagation-strategy.md).
+Measured in M3: a full SGP4 pass over the 16,895-satellite catalog takes about 26 ms, more than a frame. So each satellite is re-propagated about once a second on the main thread, a slice per frame (about 0.45 ms), and the vertex shader extrapolates in between from the Earth-fixed position and velocity, with gravity and rotating-frame terms so it stays accurate when the clock runs fast (`three/extrapolation.ts`). Details, numbers and the alternatives (Web Worker, WASM bulk propagator) are in [ADR 0002](adr/0002-propagation-strategy.md).
 
 ## Invalid and decayed satellites
 

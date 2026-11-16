@@ -11,6 +11,7 @@ import {
 import type { Catalog } from '../orbital/catalog'
 import { gmstRadFromUnixMs } from '../orbital/frames'
 import { propagateEcf } from '../orbital/propagation'
+import { extrapolate, EXTRAPOLATE_GLSL } from './extrapolation'
 import { writeEcfKmToScene } from './units'
 
 /**
@@ -18,20 +19,28 @@ import { writeEcfKmToScene } from './units'
  *
  * Propagation strategy (docs/adr/0002-propagation-strategy.md): a full SGP4 pass over
  * the catalog costs more than a frame, so each satellite is re-propagated about once a
- * second, a slice of the catalog per frame. Between refreshes the vertex shader moves
- * each point along its Earth-fixed velocity, so motion is smooth at any frame rate and
- * the per-frame CPU cost is a fraction of a millisecond.
+ * second of simulation time, a slice of the catalog per frame. Between refreshes the
+ * vertex shader extrapolates each point from its Earth-fixed position and velocity
+ * (extrapolation.ts), so motion is smooth at any frame rate and the per-frame CPU cost
+ * is a fraction of a millisecond at 1x.
  */
 
 /** Target age of a satellite's propagated state, in simulation time. */
 const REFRESH_PERIOD_MS = 1000
 /**
  * Upper bound on SGP4 calls per frame (as a share of the catalog), so a fast-forwarded
- * clock degrades extrapolation accuracy instead of frame rate.
+ * clock degrades extrapolation accuracy instead of frame rate. At 1000x and 60 fps a
+ * frame is 16.7 simulated seconds, so with 1/6 the oldest state is about 100 s old,
+ * which the second-order extrapolation holds to a couple of km (ADR 0002).
  */
-const MAX_REFRESH_SHARE_PER_FRAME = 1 / 8
-/** A clock jump larger than this (seek, tab asleep) re-propagates everything at once. */
-const FULL_REFRESH_JUMP_MS = 10_000
+const MAX_REFRESH_SHARE_PER_FRAME = 1 / 6
+/**
+ * A clock step larger than this in one frame (a seek, or a long sleep) re-propagates
+ * everything at once. It has to be well above a normal frame at the fastest rate
+ * (16.7 to 100 simulated seconds at 1000x), or fast-forward would do a full pass
+ * every frame.
+ */
+const FULL_REFRESH_JUMP_MS = 300_000
 /**
  * Shader time is a 32-bit float of seconds since `timeBaseMs`. Rebase before it grows
  * large enough to lose millisecond resolution.
@@ -50,8 +59,10 @@ const vertexShader = /* glsl */ `
   uniform float uTime;        // seconds since the time base
   uniform float uSize;        // device pixels
 
+  ${EXTRAPOLATE_GLSL}
+
   void main() {
-    vec3 current = position + aVelocity * (uTime - aTime0);
+    vec3 current = extrapolate(position, aVelocity, uTime - aTime0);
     vec4 viewPosition = modelViewMatrix * vec4(current, 1.0);
     gl_Position = projectionMatrix * viewPosition;
     // Points grow gently as the camera closes in, within a narrow range, so dense
@@ -256,10 +267,15 @@ export function createSatelliteLayer(
       if (state[index] !== 1) return false
       const offset = index * 3
       const dtSeconds = (lastSimTimeMs - timeBaseMs) / 1000 - time0[index]!
-      target.set(
-        positions[offset]! + velocities[offset]! * dtSeconds,
-        positions[offset + 1]! + velocities[offset + 1]! * dtSeconds,
-        positions[offset + 2]! + velocities[offset + 2]! * dtSeconds,
+      extrapolate(
+        positions[offset]!,
+        positions[offset + 1]!,
+        positions[offset + 2]!,
+        velocities[offset]!,
+        velocities[offset + 1]!,
+        velocities[offset + 2]!,
+        dtSeconds,
+        target,
       )
       return true
     },

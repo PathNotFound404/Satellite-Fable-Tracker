@@ -42,7 +42,31 @@ The frame conversion stays in `src/orbital/frames.ts` on the CPU; the shader onl
 - **Per-frame CPU cost is about 0.4 to 0.5 ms** of SGP4 for the full catalog at 60 fps, plus a small buffer upload. One draw call.
 - **Extrapolation error is a few metres.** A straight line over at most 1 s of a low-orbit arc deviates by about ½·a·t² ≈ 4 m (a ≈ 8.7 m/s²). A unit test holds the layer within 20 m of direct SGP4 across the whole sample. This is far below SGP4's own kilometre-level error.
 - **Satellite.js allocates small result objects per `sgp4` call** (about 280 calls per frame). That is short-lived garbage we don't control without the WASM path; our own code in the loop allocates nothing. If a browser profile ever shows GC pauses from it, option 4 is the fix.
-- **Time acceleration needs more work (M6).** At high rates the 1/8 cap leaves states several simulated seconds old and a straight line is no longer enough. Options then: raise the cap, add a gravity term to the shader extrapolation, or move to a worker.
+- **Time acceleration needed more work.** Done in M6; see the update below.
 - **Building SGP4 records blocks the main thread for about 0.4 s at load.** Acceptable for now (it happens once, under the loading state). If it shows up in Lighthouse (M7), build in chunks.
 - **Picking and the info panel must use the same extrapolation** as the shader. `satelliteLayer.getScenePosition` does, so clicks land where points are drawn.
 - **Frame rate on real hardware still needs confirming.** Headless Chrome cannot measure it. Open the app with `?debug` for a live frame rate and propagation cost readout.
+
+## Update 2026-11-16: time acceleration (M6 time controls)
+
+With the clock at 1000x, one 60 fps frame is 16.7 simulated seconds. A straight-line extrapolation over that is already about 1.2 km off for a low orbit, and states are several frames old.
+
+Changes:
+
+- **Second-order extrapolation.** The shader (and its CPU twin in `src/three/extrapolation.ts`) now uses `r + v·dt + ½·a·dt²`, where `a` is two-body gravity plus the centrifugal and Coriolis terms of the rotating Earth-fixed frame. The remaining error is third order: about 0.35 km after 60 s and 1.6 km after 100 s for low orbit.
+- **Per-frame cap raised from 1/8 to 1/6 of the catalog.** At 1000x and 60 fps the oldest state is then about 100 simulated seconds old.
+- **Full-refresh threshold raised from 10 s to 300 s of simulated time per frame,** so fast-forward does not trigger a full pass every frame.
+
+Measured (unit tests in `src/three/extrapolation.test.ts`, whole sample, 60 fps frames):
+
+| Rate | Worst error vs direct SGP4 |
+|---|---|
+| 1x | under 20 m |
+| 100x | under 100 m |
+| 1000x, forwards and reverse | under 5 km |
+
+Costs and limits:
+
+- At 1000x the layer makes up to 1/6 of the catalog in SGP4 calls per frame: about 2,800 calls, roughly 4.4 ms. At 1x it is unchanged (about 0.45 ms).
+- Accuracy at 1000x depends on frame rate: at 30 fps states are twice as old and the worst error rises to roughly 13 km. That is visible only when zoomed far in, and corrects itself within a few frames of slowing down.
+- If higher rates or tighter accuracy are ever needed, the next steps are Hermite interpolation between two SGP4 states, or the Web Worker option above.
