@@ -15,10 +15,17 @@ Built in milestones, each one demoable ([roadmap](docs/roadmap.md)).
 | 1 | Scaffold, globe, CI, deploy | Globe and CI done; deploy pending |
 | 2 | Data pipeline | Fetch, validation and refresh workflow done; scheduled deploys pending Vercel setup |
 | 3 | Propagate and plot | Done: full catalog moving in real time |
-| 4 | Select, info panel, orbit | Not started |
+| 4 | Select, info panel, orbit | Done: click a satellite for live stats and its orbit |
 | 5 | Search and filters | Not started |
 | 6 | Stretch features | Not started |
 | 7 | Polish and README | Not started |
+
+## Using it
+
+- Drag to rotate, scroll or pinch to zoom.
+- Click a satellite to see its name, altitude, speed, ground position, inclination and period, and to draw its orbit. Click empty space or press Esc to clear.
+- Link straight to a satellite with `?sat=<NORAD ID>`, for example `?sat=25544` for the ISS.
+- Add `?debug` for a frame rate and propagation cost readout.
 
 ## Stack
 

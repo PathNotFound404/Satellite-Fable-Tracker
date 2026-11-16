@@ -75,7 +75,7 @@ src/
 3. **Clock:** `useSimClock` is the single source of simulation time (real time at 1x until time controls land).
 4. **Propagate:** each frame, a slice of the catalog (sized so every satellite is refreshed about once a second) goes through `propagateEcf(satrec, simTime)`: TEME state (km, km/s) → ECF via GMST → scene units → written into shared `Float32Array`s for position, velocity and the time they were computed. Failures hide that point (see below).
 5. **Render:** one `THREE.Points` whose vertex shader draws each point at `position + velocity * (now - time0)`, so motion is smooth between refreshes. Only the refreshed slice is uploaded.
-6. **Select:** a click is raycast against the points; the hit index maps back to the satellite. The info panel reads altitude, speed and inclination from `orbital/` helpers for that one satellite.
+6. **Select:** a click is matched to the nearest drawn point in screen space; the hit index maps back to the satellite. The info panel reads altitude, speed and ground position from `orbital/` helpers for that one satellite four times a second. The orbit line is one period sampled in the inertial frame (a closed ellipse), rotated about the polar axis each frame as the Earth turns and re-sampled every 20 s.
 
 ## Frames, units and constants
 
@@ -106,7 +106,7 @@ Measured in M3: a full SGP4 pass over the 16,895-satellite catalog takes about 2
 
 ## Picking
 
-- `THREE.Raycaster` with a points threshold scaled to camera distance. This is O(n) per click, which is fine for 10k points on click events.
+- Screen-space picking (`three/picking.ts`): each shown satellite is projected to pixels and the nearest one within a tolerance (10 px for a mouse, 22 px for touch) wins, skipping any hidden behind the Earth. This replaced the planned `THREE.Raycaster` because points are moved in the vertex shader, so the raw position buffer a raycaster reads is up to a second stale, and a pixel tolerance behaves the same at every zoom. It is O(n) per click: well under a millisecond for 17k points.
 - Hover highlighting (if added) would need a cheaper method (throttling or GPU color-ID picking). Decide when needed.
 
 ## Accuracy and data age
