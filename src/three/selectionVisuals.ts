@@ -6,23 +6,30 @@ import {
   Group,
   Line,
   LineBasicMaterial,
+  LineDashedMaterial,
   Points,
   ShaderMaterial,
   type Vector3,
 } from 'three'
 import { gmstRadFromUnixMs, temeStateToEcf } from '../orbital/frames'
-import { sampleOrbitTeme } from '../orbital/orbitPath'
+import { sampleGroundTrackEcf, sampleOrbitTeme } from '../orbital/orbitPath'
 import type { SatRec } from '../orbital/propagation'
-import { writeEcfKmToScene } from './units'
+import { sceneToKm, writeEcfKmToScene } from './units'
 
 /**
- * What is drawn for the selected satellite: a ring marker on the point and its orbit.
+ * What is drawn for the selected satellite: a ring marker on the point, its orbit and
+ * its ground track.
  *
  * The orbit is one period sampled in the inertial frame, where it is a closed ellipse,
  * then placed in the Earth-fixed scene using the sidereal angle at sampling time. As
  * the Earth turns under the orbit, the whole line is rotated about the polar axis by
  * the change in sidereal angle, which costs one number per frame instead of a
  * re-sample. It is re-sampled every so often so drag and precession don't accumulate.
+ *
+ * The ground track is the path of the point directly below the satellite, one orbit
+ * behind and one ahead. It is fixed to the Earth, so it needs no per-frame rotation,
+ * only the same periodic re-sample to keep it centred on the present. It is drawn
+ * dashed and neutral so it can't be mistaken for the solid, accent-coloured orbit.
  */
 
 /** Matches --color-accent in tokens.css. */
@@ -30,6 +37,14 @@ const ACCENT_COLOR = 0x0a84ff
 /** Enough for a smooth ellipse, including sparse perigee passes of eccentric orbits. */
 const ORBIT_SAMPLES = 361
 const RESAMPLE_AFTER_MS = 20_000
+/** Odd, so the middle sample is exactly the present. About 2 degrees of orbit apart. */
+const GROUND_TRACK_SAMPLES = 361
+/** Just above the surface (about 19 km) so the line doesn't fight the globe for depth. */
+const GROUND_TRACK_RADIUS = 1.003
+const GROUND_TRACK_COLOR = 0xf5f5f7
+/** Dash and gap lengths in scene units (Earth radii): about 115 km and 75 km. */
+const GROUND_TRACK_DASH = 0.018
+const GROUND_TRACK_GAP = 0.012
 /** CSS pixels. */
 const MARKER_SIZE_PX = 22
 
@@ -90,6 +105,31 @@ export function createSelectionVisuals(pixelRatio: number): SelectionVisuals {
   orbit.renderOrder = 2
   object.add(orbit)
 
+  // Ground track
+  const trackPositions = new Float32Array(GROUND_TRACK_SAMPLES * 3)
+  const trackDistances = new Float32Array(GROUND_TRACK_SAMPLES)
+  const trackPositionAttribute = new BufferAttribute(trackPositions, 3).setUsage(DynamicDrawUsage)
+  // LineDashedMaterial reads the distance along the line from this attribute. Filled in
+  // by hand on each re-sample; Line.computeLineDistances would allocate every time.
+  const trackDistanceAttribute = new BufferAttribute(trackDistances, 1).setUsage(DynamicDrawUsage)
+  const trackGeometry = new BufferGeometry()
+  trackGeometry.setAttribute('position', trackPositionAttribute)
+  trackGeometry.setAttribute('lineDistance', trackDistanceAttribute)
+  trackGeometry.setDrawRange(0, 0)
+  const trackMaterial = new LineDashedMaterial({
+    color: GROUND_TRACK_COLOR,
+    dashSize: GROUND_TRACK_DASH,
+    gapSize: GROUND_TRACK_GAP,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false,
+  })
+  const track = new Line(trackGeometry, trackMaterial)
+  track.name = 'ground-track'
+  track.frustumCulled = false
+  track.renderOrder = 2
+  object.add(track)
+
   // Marker: a single point whose object position is moved each frame.
   const markerGeometry = new BufferGeometry()
   markerGeometry.setAttribute('position', new BufferAttribute(new Float32Array(3), 3))
@@ -113,6 +153,8 @@ export function createSelectionVisuals(pixelRatio: number): SelectionVisuals {
   let sampledAtMs = Number.NaN
   let sampledGmstRad = 0
   const temeSamples = new Float64Array(ORBIT_SAMPLES * 3)
+  const trackSamples = new Float64Array(GROUND_TRACK_SAMPLES * 3)
+  const trackRadiusKm = sceneToKm(GROUND_TRACK_RADIUS)
   const stateScratch = new Float64Array(6)
 
   function resample(simTimeMs: number): void {
@@ -135,6 +177,36 @@ export function createSelectionVisuals(pixelRatio: number): SelectionVisuals {
       writeEcfKmToScene(stateScratch[0]!, stateScratch[1]!, stateScratch[2]!, orbitPositions, i * 3)
     }
     orbitAttribute.needsUpdate = true
+
+    const trackWritten = sampleGroundTrackEcf(
+      target.satrec,
+      simTimeMs,
+      target.meanMotionRevPerDay,
+      GROUND_TRACK_SAMPLES,
+      trackSamples,
+    )
+    let distance = 0
+    for (let i = 0; i < trackWritten; i++) {
+      const offset = i * 3
+      writeEcfKmToScene(
+        trackSamples[offset]! * trackRadiusKm,
+        trackSamples[offset + 1]! * trackRadiusKm,
+        trackSamples[offset + 2]! * trackRadiusKm,
+        trackPositions,
+        offset,
+      )
+      if (i > 0) {
+        distance += Math.hypot(
+          trackPositions[offset]! - trackPositions[offset - 3]!,
+          trackPositions[offset + 1]! - trackPositions[offset - 2]!,
+          trackPositions[offset + 2]! - trackPositions[offset - 1]!,
+        )
+      }
+      trackDistances[i] = distance
+    }
+    trackPositionAttribute.needsUpdate = true
+    trackDistanceAttribute.needsUpdate = true
+    trackGeometry.setDrawRange(0, trackWritten)
     orbitGeometry.setDrawRange(0, written)
     sampledAtMs = simTimeMs
   }
@@ -146,7 +218,10 @@ export function createSelectionVisuals(pixelRatio: number): SelectionVisuals {
       target = nextTarget
       sampledAtMs = Number.NaN
       object.visible = nextTarget !== null
-      if (nextTarget === null) orbitGeometry.setDrawRange(0, 0)
+      if (nextTarget === null) {
+        orbitGeometry.setDrawRange(0, 0)
+        trackGeometry.setDrawRange(0, 0)
+      }
     },
 
     update(simTimeMs, markerPosition) {
@@ -170,6 +245,8 @@ export function createSelectionVisuals(pixelRatio: number): SelectionVisuals {
     dispose() {
       orbitGeometry.dispose()
       orbitMaterial.dispose()
+      trackGeometry.dispose()
+      trackMaterial.dispose()
       markerGeometry.dispose()
       markerMaterial.dispose()
     },

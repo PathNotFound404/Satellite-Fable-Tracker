@@ -1,7 +1,14 @@
 import { eciToGeodetic } from 'satellite.js'
 import { MS_PER_MINUTE } from './constants'
 import { gmstRadFromUnixMs } from './frames'
-import { altitudeKm, periodMinutes, propagateTeme, speedKmS, type SatRec } from './propagation'
+import {
+  altitudeKm,
+  periodMinutes,
+  propagateEcf,
+  propagateTeme,
+  speedKmS,
+  type SatRec,
+} from './propagation'
 
 const temeScratch = new Float64Array(6)
 
@@ -61,4 +68,38 @@ export function computeTelemetry(satrec: SatRec, unixMs: number, out: Telemetry)
   out.latitudeDeg = geodetic.latitude * RAD_TO_DEG
   out.longitudeDeg = geodetic.longitude * RAD_TO_DEG
   return true
+}
+
+/**
+ * Samples the ground track: the path of the point directly below the satellite, in the
+ * Earth-fixed frame, from one period before `centerUnixMs` to one period after. Each
+ * sample uses the sidereal angle of its own time, which is what makes successive
+ * orbits shift westward as the Earth turns underneath.
+ *
+ * Writes unit vectors (x, y, z in ECF axes: the direction from Earth's centre to the
+ * satellite) into `out`, evenly spaced in time, with the middle sample exactly at
+ * `centerUnixMs`. `samples` must be odd. Returns how many were written; fewer than
+ * `samples` means propagation failed part-way and only that much should be drawn.
+ */
+export function sampleGroundTrackEcf(
+  satrec: SatRec,
+  centerUnixMs: number,
+  meanMotionRevPerDay: number,
+  samples: number,
+  out: Float32Array | Float64Array,
+): number {
+  const periodMs = periodMinutes(meanMotionRevPerDay) * MS_PER_MINUTE
+  const startMs = centerUnixMs - periodMs
+  for (let i = 0; i < samples; i++) {
+    const timeMs = startMs + (2 * periodMs * i) / (samples - 1)
+    if (!propagateEcf(satrec, timeMs, gmstRadFromUnixMs(timeMs), temeScratch)) return i
+    const x = temeScratch[0]!
+    const y = temeScratch[1]!
+    const z = temeScratch[2]!
+    const radius = Math.hypot(x, y, z)
+    out[i * 3] = x / radius
+    out[i * 3 + 1] = y / radius
+    out[i * 3 + 2] = z / radius
+  }
+  return samples
 }
