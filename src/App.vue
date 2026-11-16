@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed, markRaw, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { Vector3 } from 'three'
+import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import DataAgeBadge from './components/DataAgeBadge.vue'
 import DebugReadout from './components/DebugReadout.vue'
 import GlobeCanvas from './components/GlobeCanvas.vue'
+import GroupFilter from './components/GroupFilter.vue'
 import InfoPanel from './components/InfoPanel.vue'
+import SearchBox, { type SearchResult } from './components/SearchBox.vue'
 import { groupLabelsFor } from './composables/groups'
+import { buildSearchIndex, searchCatalog } from './composables/search'
+import { useFilters } from './composables/useFilters'
 import { useSatelliteLayer } from './composables/useSatelliteLayer'
 import { useSatellites } from './composables/useSatellites'
 import { useSelection } from './composables/useSelection'
@@ -24,6 +29,8 @@ const { selectedIndex, select, clear } = useSelection()
 useSelectionVisuals(globeScene, catalog, layer, selectedIndex)
 const { telemetry, available: telemetryAvailable } = useTelemetry(catalog, selectedIndex)
 
+const { activeFilter, options: filterOptions, passes, setFilter } = useFilters(catalog, layer, trackedCount)
+
 const selectedRecord = computed(() =>
   selectedIndex.value === null ? null : (catalog.value?.records[selectedIndex.value] ?? null),
 )
@@ -32,6 +39,13 @@ const selectedGroups = computed(() =>
     ? []
     : groupLabelsFor(catalog.value, selectedIndex.value),
 )
+
+// A satellite hidden by the filter can't stay selected: its marker would have no point.
+watch(activeFilter, () => {
+  if (selectedIndex.value !== null && !passes(selectedIndex.value)) clear()
+})
+
+// --- Picking -----------------------------------------------------------------------
 
 // Fingers are less precise than a mouse pointer.
 const PICK_TOLERANCE_MOUSE_PX = 10
@@ -54,13 +68,45 @@ function onPick(point: { x: number; y: number; width: number; height: number; is
   else select(index)
 }
 
+// --- Search ------------------------------------------------------------------------
+
+const MAX_SEARCH_RESULTS = 50
+const searchIndex = computed(() => (catalog.value === null ? null : buildSearchIndex(catalog.value)))
+
+function search(query: string): SearchResult[] {
+  const loaded = catalog.value
+  const shownLayer = layer.value
+  if (loaded === null || shownLayer === null || searchIndex.value === null) return []
+  // Decayed or invalid satellites have no position to show, so they aren't offered.
+  return searchCatalog(searchIndex.value, query, MAX_SEARCH_RESULTS, shownLayer.isValid).map(
+    (index) => ({
+      index,
+      name: loaded.records[index]!.OBJECT_NAME,
+      noradId: loaded.records[index]!.NORAD_CAT_ID,
+    }),
+  )
+}
+
+const focusPosition = new Vector3()
+
+/** Select a satellite that may be off screen: make sure it is shown, then fly to it. */
+async function selectAndFocus(index: number): Promise<void> {
+  if (!passes(index)) {
+    setFilter('all')
+    // Let the filter reach the layer before asking it where the satellite is.
+    await nextTick()
+  }
+  select(index)
+  if (layer.value?.getScenePosition(index, focusPosition)) globeScene.value?.flyTo(focusPosition)
+}
+
 // Deep link: ?sat=25544 selects that NORAD ID once the data has loaded.
 const linkedNoradId = Number(new URLSearchParams(window.location.search).get('sat'))
 if (Number.isInteger(linkedNoradId) && linkedNoradId > 0) {
-  const stop = watch(catalog, (loaded) => {
-    if (loaded === null) return
-    const index = loaded.indexByNoradId.get(linkedNoradId)
-    if (index !== undefined) select(index)
+  const stop = watch(layer, (shownLayer) => {
+    if (shownLayer === null || catalog.value === null) return
+    const index = catalog.value.indexByNoradId.get(linkedNoradId)
+    if (index !== undefined) void selectAndFocus(index)
     stop()
   })
 }
@@ -96,9 +142,12 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
         <p class="numeric">{{ subtitle }}</p>
       </header>
 
+      <SearchBox :search="search" :disabled="catalog === null" @select="selectAndFocus" />
+
       <Transition name="panel">
         <InfoPanel
           v-if="selectedRecord"
+          class="app__panel"
           :record="selectedRecord"
           :groups="selectedGroups"
           :telemetry="telemetry"
@@ -106,6 +155,15 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
           @close="clear"
         />
       </Transition>
+    </div>
+
+    <div class="app__filter">
+      <GroupFilter
+        v-if="catalog !== null"
+        :options="filterOptions"
+        :model-value="activeFilter"
+        @update:model-value="setFilter"
+      />
     </div>
 
     <div class="app__status">
@@ -132,7 +190,7 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
   height: 100%;
 }
 
-/* Overlay columns ignore the pointer so the globe stays draggable between panels;
+/* Overlay containers ignore the pointer so the globe stays draggable between panels;
    the panels themselves opt back in. */
 .app__left {
   position: absolute;
@@ -168,6 +226,22 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
   margin: 0;
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
+}
+
+.app__panel {
+  /* If the window is short, the panel scrolls instead of running off screen. */
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.app__filter {
+  position: absolute;
+  top: var(--inset-top);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  max-width: calc(100% - var(--inset-left) - var(--inset-right));
 }
 
 .app__status {
@@ -219,11 +293,31 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
   transform: translateY(-6px);
 }
 
-/* Phones: the panel becomes a sheet along the bottom edge. */
+/* Not enough width for a centred filter between the side columns: move it to the
+   bottom edge, and lift the hint above it. */
+@media (max-width: 1080px) {
+  .app__filter {
+    top: auto;
+    bottom: var(--inset-bottom);
+  }
+
+  .app__hint {
+    bottom: calc(var(--inset-bottom) + 48px);
+  }
+
+  .app__debug {
+    bottom: calc(var(--inset-bottom) + 48px);
+  }
+
+  .app__left {
+    bottom: calc(var(--inset-bottom) + 48px);
+  }
+}
+
+/* Phones: full-width search, and the panel becomes a sheet above the filter. */
 @media (max-width: 600px) {
   .app__left {
     right: var(--inset-right);
-    justify-content: space-between;
     align-items: stretch;
   }
 
@@ -231,13 +325,23 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
     align-self: flex-start;
   }
 
+  .app__left :deep(.search),
   .app__left :deep(.panel) {
     width: 100%;
+  }
+
+  .app__panel {
+    margin-top: auto;
   }
 
   .panel-enter-from,
   .panel-leave-to {
     transform: translateY(6px);
+  }
+
+  /* The title and the data badge share the top row; keep the badge compact. */
+  .app__status {
+    max-width: 55%;
   }
 }
 </style>

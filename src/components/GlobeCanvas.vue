@@ -23,6 +23,7 @@ onMounted(() => {
   try {
     globeScene = createGlobeScene(canvas.value, {
       autoRotate: !prefersReducedMotion,
+      animateCamera: !prefersReducedMotion,
       onFirstInteraction: () => emit('interact'),
     })
     emit('ready', globeScene)

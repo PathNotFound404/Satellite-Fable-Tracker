@@ -14,7 +14,7 @@
   --color-success: #30d158;
 
   /* Translucent surfaces that float over the globe */
-  --surface-fill: rgb(28 28 30 / 0.62);
+  --surface-fill: rgb(28 28 30 / 0.72);
   --surface-fill-strong: rgb(28 28 30 / 0.82);
   --surface-fill-hover: rgb(255 255 255 / 0.08);
   --surface-fill-active: rgb(255 255 255 / 0.14);
