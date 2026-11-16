@@ -81,6 +81,8 @@ export interface SatelliteLayer {
   update(simTimeMs: number): void
   /** Satellites whose latest propagation failed (decayed or invalid). They are hidden. */
   invalidCount(): number
+  /** True if satellite `index` propagated successfully last time, whatever the filter. */
+  isValid(index: number): boolean
   /** True if satellite `index` is currently drawn (valid and not filtered out). */
   isShown(index: number): boolean
   /**
@@ -245,6 +247,8 @@ export function createSatelliteLayer(
     },
 
     invalidCount: () => invalid,
+
+    isValid: (index) => valid[index] === 1,
 
     isShown: (index) => state[index] === 1,
 

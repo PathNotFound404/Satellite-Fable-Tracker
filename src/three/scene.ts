@@ -1,3 +1,4 @@
+import type { Vector3 } from 'three'
 import {
   AmbientLight,
   DirectionalLight,
@@ -7,6 +8,7 @@ import {
   WebGLRenderer,
 } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { createCameraFlight } from './cameraFlight'
 import { createGlobe } from './globe'
 import { createStars } from './stars'
 
@@ -16,6 +18,11 @@ const CAMERA_MIN_DISTANCE = 1.15
 /** Far enough to see the whole geostationary belt (6.6 Earth radii). */
 const CAMERA_MAX_DISTANCE = 22
 const CAMERA_FOV_DEG = 42
+
+/** How long the camera takes to swing round to a satellite. */
+const FLY_DURATION_MS = 900
+/** Keep at least this much room (Earth radii) between the camera and a focused satellite. */
+const FLY_CLEARANCE = 1.2
 
 /** Cap device pixel ratio: above 2 the fill-rate cost outweighs the sharpness. */
 const MAX_PIXEL_RATIO = 2
@@ -28,6 +35,8 @@ export type FrameCallback = (timeMs: number, deltaMs: number) => void
 export interface GlobeSceneOptions {
   /** Idle spin before the first interaction. Turn off for reduced motion. */
   autoRotate?: boolean
+  /** Animate camera moves. Turn off for reduced motion: the camera jumps instead. */
+  animateCamera?: boolean
   /** Called once, the first time the user drags or zooms. */
   onFirstInteraction?: () => void
 }
@@ -39,6 +48,8 @@ export interface GlobeScene {
   readonly controls: OrbitControls
   /** Register work to run every frame before rendering. Returns an unsubscribe function. */
   onFrame(callback: FrameCallback): () => void
+  /** Swing the camera round to look at a scene position (for example a satellite). */
+  flyTo(scenePosition: Vector3): void
   dispose(): void
 }
 
@@ -86,9 +97,14 @@ export function createGlobeScene(
   controls.autoRotate = options.autoRotate ?? true
   controls.autoRotateSpeed = AUTO_ROTATE_SPEED
 
+  const flight = createCameraFlight()
+  const flyDurationMs = (options.animateCamera ?? true) ? FLY_DURATION_MS : 0
+
   let hasInteracted = false
   const handleControlStart = (): void => {
     controls.autoRotate = false
+    // The user always wins over an animation in progress.
+    flight.cancel()
     if (hasInteracted) return
     hasInteracted = true
     options.onFirstInteraction?.()
@@ -126,6 +142,8 @@ export function createGlobeScene(
     for (let i = 0; i < frameCallbacks.length; i++) {
       frameCallbacks[i]!(timeMs, deltaMs)
     }
+    // OrbitControls reads the camera position each update, so a flight just moves it.
+    flight.update(deltaMs, camera.position)
     controls.update()
     renderer.render(scene, camera)
   }
@@ -142,6 +160,14 @@ export function createGlobeScene(
         const index = frameCallbacks.indexOf(callback)
         if (index !== -1) frameCallbacks.splice(index, 1)
       }
+    },
+    flyTo(scenePosition) {
+      controls.autoRotate = false
+      const distance = Math.min(
+        CAMERA_MAX_DISTANCE,
+        Math.max(camera.position.length(), scenePosition.length() + FLY_CLEARANCE),
+      )
+      flight.start(camera.position, scenePosition, distance, flyDurationMs)
     },
     dispose() {
       cancelAnimationFrame(frameHandle)
