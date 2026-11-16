@@ -1,0 +1,36 @@
+{
+  "name": "satellite-fable-tracker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Live satellite tracker: thousands of real satellites on an interactive 3D globe.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "three": "^0.187.0",
+    "vue": "^3.5.45"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "@types/three": "^0.187.0",
+    "@vitejs/plugin-vue": "^6.0.11",
+    "eslint": "^10.15.0",
+    "eslint-plugin-vue": "^10.12.1",
+    "globals": "^17.14.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0",
+    "vue-tsc": "^3.3.14"
+  }
+}
