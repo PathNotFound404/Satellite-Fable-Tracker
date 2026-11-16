@@ -15,6 +15,7 @@ import { useSatelliteLayer } from './composables/useSatelliteLayer'
 import { useSatellites } from './composables/useSatellites'
 import { useSelection } from './composables/useSelection'
 import { useSelectionVisuals } from './composables/useSelectionVisuals'
+import { useSunlight } from './composables/useSunlight'
 import { useTelemetry } from './composables/useTelemetry'
 import { useTimeControls } from './composables/useTimeControls'
 import { pickSatellite } from './three/picking'
@@ -26,6 +27,7 @@ const { file, status, errorMessage } = useSatellites()
 // Raw three.js scene handle: shallow and marked raw so Vue never proxies it.
 const globeScene = shallowRef<GlobeScene | null>(null)
 const { catalog, layer, trackedCount, stats } = useSatelliteLayer(globeScene, file)
+useSunlight(globeScene)
 
 const { selectedIndex, select, clear } = useSelection()
 useSelectionVisuals(globeScene, catalog, layer, selectedIndex)
