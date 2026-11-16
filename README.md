@@ -4,7 +4,7 @@
 
 Thousands of real satellites moving in real time on an interactive 3D globe. Orbital data comes from [CelesTrak](https://celestrak.org), positions are computed in the browser with SGP4, and everything is drawn in a single three.js point cloud. No backend, no cost.
 
-**Live site:** coming soon (Vercel deployment pending).
+**Live site:** https://satellite-fable-tracker.vercel.app
 
 ## Status
 
@@ -12,8 +12,8 @@ Built in milestones, each one demoable ([roadmap](docs/roadmap.md)).
 
 | # | Milestone | State |
 |---|---|---|
-| 1 | Scaffold, globe, CI, deploy | Globe and CI done; deploy pending |
-| 2 | Data pipeline | Fetch, validation and refresh workflow done; scheduled deploys pending Vercel setup |
+| 1 | Scaffold, globe, CI, deploy | Done |
+| 2 | Data pipeline | Done: data refreshes from CelesTrak every 6 hours |
 | 3 | Propagate and plot | Done: full catalog moving in real time |
 | 4 | Select, info panel, orbit | Done: click a satellite for live stats and its orbit |
 | 5 | Search and filters | Done: search by name or NORAD ID, group filters with counts |

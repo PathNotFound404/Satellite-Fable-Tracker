@@ -4,11 +4,10 @@ name: data-refresh
 # Spec and fair-use rules: docs/ci-cd.md. Data is deployed, never committed (ADR 0001).
 
 on:
-  # TODO(owner): uncomment once the Vercel secrets and PRODUCTION_URL exist (docs/ci-cd.md).
-  # Every 6 hours at minute 23: 3x CelesTrak's 2-hour update interval, and off the
-  # busy top of the hour.
-  # schedule:
-  #   - cron: '23 */6 * * *'
+  schedule:
+    # Every 6 hours at minute 23: 3x CelesTrak's 2-hour update interval, and off the
+    # busy top of the hour.
+    - cron: '23 */6 * * *'
   workflow_dispatch:
 
 permissions:

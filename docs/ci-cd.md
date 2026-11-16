@@ -87,7 +87,7 @@ On `main`: require a PR, require the `ci` check to pass, no force pushes. Set th
 ## `data-refresh.yml`: data refresh workflow
 
 **Triggers:**
-- `schedule: cron: '23 */6 * * *'` (every 6 hours at minute 23, avoiding the busy top of the hour; GitHub may delay scheduled runs). **The schedule is commented out in the workflow file until the secrets below exist,** so it doesn't fail every 6 hours in the meantime.
+- `schedule: cron: '23 */6 * * *'` (every 6 hours at minute 23, avoiding the busy top of the hour; GitHub may delay scheduled runs).
 - `workflow_dispatch` (manual run, still subject to the freshness guard)
 
 **Settings:**
