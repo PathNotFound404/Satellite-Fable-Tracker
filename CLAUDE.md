@@ -45,6 +45,7 @@ Package manager: npm. Update this table whenever scripts change.
 | Lint | `npm run lint` |
 | Fetch data locally | `npm run fetch-data` |
 | Regenerate `sample.json` (offline) | `node scripts/make-sample.ts` |
+| Propagation benchmark | `BENCH=1 npx vitest run scripts/propagation-bench` |
 
 Before calling any task done, `typecheck`, `lint`, `test` and `build` must all pass.
 
@@ -100,9 +101,13 @@ These are the easiest places to introduce subtle bugs. Be careful.
 - Altitude = distance from Earth's center minus Earth radius (use a consistent radius constant). Speed comes from the velocity vector magnitude.
 - Handle propagation failures: `satellite.js` returns `false` for decayed or invalid satellites. Skip them without crashing and without leaving a bad point on screen.
 - TLE accuracy degrades over days. Show the data's `generatedAt` age in the UI and never imply sub-kilometer accuracy.
+- Import only satellite.js's plain-JS API (`sgp4`, `json2satrec`, `gstime`, ...). Its WebAssembly builds are stubbed out in `vite.config.ts` and are not available at runtime (ADR 0002).
+- Positions on screen are extrapolated in the vertex shader between SGP4 refreshes. Anything that needs "where is satellite i right now" (picking, panel, camera) must go through `satelliteLayer.getScenePosition` or a fresh `propagateTeme`/`propagateEcf` call, never the raw position buffer.
 - Add tests with known-good reference values (for example published SGP4 test vectors or a known ISS position) rather than tests that only re-run the same code.
 
 ## Performance targets
+
+Add `?debug` to the URL for a live frame rate and per-frame propagation cost readout.
 
 - 60fps with the full Starlink + active catalog (roughly 10k+ points) on a mid-range laptop.
 - If per-frame propagation of every satellite is too slow on the main thread, move it to a Web Worker or propagate at a lower rate and interpolate. Record the decision in `docs/adr/`.

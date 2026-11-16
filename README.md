@@ -14,7 +14,7 @@ Built in milestones, each one demoable ([roadmap](docs/roadmap.md)).
 |---|---|---|
 | 1 | Scaffold, globe, CI, deploy | Globe and CI done; deploy pending |
 | 2 | Data pipeline | Fetch, validation and refresh workflow done; scheduled deploys pending Vercel setup |
-| 3 | Propagate and plot | Not started |
+| 3 | Propagate and plot | Done: full catalog moving in real time |
 | 4 | Select, info panel, orbit | Not started |
 | 5 | Search and filters | Not started |
 | 6 | Stretch features | Not started |
