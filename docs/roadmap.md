@@ -165,7 +165,7 @@ Proposed order, easiest and most visible first. Reorder freely.
    - [x] A SATCAT failure never blocks or damages the orbital data: old details are kept and the run carries a warning (unit-tested).
    - [x] The fields are optional in the data contract, so older files still load, and an unknown code is shown as it is.
    - [x] No workflow file change.
-   - [ ] One scheduled run has added details to the live site.
+   - [x] A pipeline run has added details to the live site. *(Run started by hand on 2026-11-17: 17,423 SATCAT records, covering every satellite. No scheduled run has happened yet; see M2.)*
 
 Each stretch feature needs its own acceptance criteria written before work starts.
 
