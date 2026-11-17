@@ -131,7 +131,16 @@ Proposed order, easiest and most visible first. Reorder freely.
    - [x] It is visually distinct from the orbit line (yellow and two pixels wide, against the thin accent-coloured orbit).
    - [x] Its direction is readable (added 2026-11-16 after owner feedback): solid and dimmer behind the satellite, dashed and brighter ahead, with a legend in the info panel.
 4. **Next-pass predictor:** browser geolocation (with a manual fallback), next passes over the next 24 hours with rise, peak elevation and set times. Tested against an independent pass prediction for a known location and data set.
+
+   Acceptance criteria (agreed 2026-11-16):
+   - [x] The info panel has a "Passes over you" section with a button that asks the browser for the location, and typed latitude and longitude as the fallback.
+   - [x] It lists the selected satellite's passes for the next 24 hours of simulation time: rise and set in local time, and peak elevation.
+   - [x] Only passes that peak above 10 degrees are listed.
+   - [x] Rise and set times are within about a minute of an independent prediction (unit-tested against Skyfield for two satellites and two locations; they agree within 5 s).
+   - [x] The location stays in the browser, is not stored, and the UI says so.
+   - [x] The search does not drop frames (measured at 2 to 3 ms per 24-hour search).
 5. **Conjunction highlighting:** flag close approaches below a threshold. Clearly labeled as approximate (GP data is not suitable for real collision assessment).
+6. **Space station icon** (owner idea, 2026-11-16): draw members of the `stations` group with a small station glyph instead of a dot. One icon per cluster, since each docked module is a separate catalog entry; ordinary satellites stay in the single points object.
 
 Each stretch feature needs its own acceptance criteria written before work starts.
 
