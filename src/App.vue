@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Vector3 } from 'three'
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import CloseApproaches from './components/CloseApproaches.vue'
 import DataAgeBadge from './components/DataAgeBadge.vue'
 import DebugReadout from './components/DebugReadout.vue'
 import GlobeCanvas from './components/GlobeCanvas.vue'
@@ -11,6 +12,7 @@ import SearchBox, { type SearchResult } from './components/SearchBox.vue'
 import TimeControls from './components/TimeControls.vue'
 import { groupLabelsFor } from './composables/groups'
 import { buildSearchIndex, searchCatalog } from './composables/search'
+import { CONJUNCTION_THRESHOLD_KM, useConjunctions, type ApproachRow } from './composables/useConjunctions'
 import { useFilters } from './composables/useFilters'
 import { useObserverLocation } from './composables/useObserverLocation'
 import { usePasses } from './composables/usePasses'
@@ -51,6 +53,16 @@ const { activeFilter, options: filterOptions, passes, setFilter } = useFilters(c
 
 const generatedAt = computed(() => file.value?.generatedAt ?? null)
 const timeControls = useTimeControls(generatedAt)
+
+const conjunctions = useConjunctions(globeScene, catalog, layer, selectedIndex)
+
+/** How long before the closest moment to drop the viewer, so they can watch it happen. */
+const APPROACH_LEAD_MS = 10_000
+
+function showApproach(approach: ApproachRow): void {
+  conjunctions.highlight(approach.index)
+  timeControls.jumpTo(approach.timeMs - APPROACH_LEAD_MS)
+}
 
 const selectedRecord = computed(() =>
   selectedIndex.value === null ? null : (catalog.value?.records[selectedIndex.value] ?? null),
@@ -194,6 +206,15 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
             @use-device="requestDeviceLocation"
             @set-location="setLocation"
             @clear-location="clearLocation"
+          />
+          <CloseApproaches
+            :status="conjunctions.status.value"
+            :progress="conjunctions.progress.value"
+            :approaches="conjunctions.approaches.value"
+            :highlighted-index="conjunctions.highlightedIndex.value"
+            :threshold-km="CONJUNCTION_THRESHOLD_KM"
+            @scan="conjunctions.start"
+            @show="showApproach"
           />
         </InfoPanel>
       </Transition>

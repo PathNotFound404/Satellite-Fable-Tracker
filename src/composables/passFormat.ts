@@ -2,7 +2,7 @@ import type { Pass } from '../orbital/passes'
 
 /** What the panel shows for one pass. */
 export interface PassLabel {
-  /** "Mon 16, 21:14 to 21:25", "Now until 21:25", "Above the horizon all week". */
+  /** "Mon 16 Nov, 21:14 to 21:25", "Now until 21:25", "Above the horizon all week". */
   when: string
   /** Peak elevation in whole degrees: GP data doesn't support finer. */
   peakDeg: number
@@ -17,8 +17,8 @@ export interface PassLabel {
  */
 export function describePass(pass: Pass, timeZone?: string, locale?: string): PassLabel {
   const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone })
-  const day = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', timeZone })
-  // The day of the month as well as the weekday: the list covers a full week.
+  const day = new Intl.DateTimeFormat(locale, { weekday: 'short', month: 'short', day: 'numeric', timeZone })
+  // The date as well as the weekday: the list covers a full week.
   const rise = `${day.format(pass.riseMs)}, ${time.format(pass.riseMs)}`
   const set = time.format(pass.setMs)
 
