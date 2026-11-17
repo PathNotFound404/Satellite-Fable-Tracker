@@ -17,7 +17,7 @@ Built in milestones, each one demoable ([roadmap](docs/roadmap.md)).
 | 3 | Propagate and plot | Done: full catalog moving in real time |
 | 4 | Select, info panel, orbit | Done: click a satellite for live stats and its orbit |
 | 5 | Search and filters | Done: search by name or NORAD ID, group filters with counts |
-| 6 | Stretch features | Time controls, day/night shading, ground track and next-pass predictor done; conjunction highlighting and a space station icon next |
+| 6 | Stretch features | Time controls, day/night shading, ground track and next-pass predictor and space station glyphs done; conjunction highlighting and catalog details next |
 | 7 | Polish and README | Not started |
 
 ## Using it
