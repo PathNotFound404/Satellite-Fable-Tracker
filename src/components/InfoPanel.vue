@@ -97,6 +97,9 @@ const epoch = computed(() =>
       </div>
     </dl>
 
+    <!-- Extra sections about the selected satellite, e.g. pass predictions. -->
+    <slot />
+
     <ul class="panel__legend" aria-label="Lines on the globe">
       <li><span class="panel__swatch" aria-hidden="true"></span>Orbit</li>
       <li>

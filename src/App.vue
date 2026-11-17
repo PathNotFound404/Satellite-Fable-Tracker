@@ -6,11 +6,14 @@ import DebugReadout from './components/DebugReadout.vue'
 import GlobeCanvas from './components/GlobeCanvas.vue'
 import GroupFilter from './components/GroupFilter.vue'
 import InfoPanel from './components/InfoPanel.vue'
+import PassPredictor from './components/PassPredictor.vue'
 import SearchBox, { type SearchResult } from './components/SearchBox.vue'
 import TimeControls from './components/TimeControls.vue'
 import { groupLabelsFor } from './composables/groups'
 import { buildSearchIndex, searchCatalog } from './composables/search'
 import { useFilters } from './composables/useFilters'
+import { useObserverLocation } from './composables/useObserverLocation'
+import { usePasses } from './composables/usePasses'
 import { useSatelliteLayer } from './composables/useSatelliteLayer'
 import { useSatellites } from './composables/useSatellites'
 import { useSelection } from './composables/useSelection'
@@ -32,6 +35,15 @@ useSunlight(globeScene)
 const { selectedIndex, select, clear } = useSelection()
 useSelectionVisuals(globeScene, catalog, layer, selectedIndex)
 const { telemetry, available: telemetryAvailable } = useTelemetry(catalog, selectedIndex)
+
+const {
+  location: observerLocation,
+  status: locationStatus,
+  requestDeviceLocation,
+  setLocation,
+  clearLocation,
+} = useObserverLocation()
+const { passes: upcomingPasses } = usePasses(catalog, selectedIndex, observerLocation)
 
 const { activeFilter, options: filterOptions, passes, setFilter } = useFilters(catalog, layer, trackedCount)
 
@@ -171,7 +183,16 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
           :telemetry="telemetry"
           :telemetry-available="telemetryAvailable"
           @close="clear"
-        />
+        >
+          <PassPredictor
+            :location="observerLocation"
+            :status="locationStatus"
+            :passes="upcomingPasses"
+            @use-device="requestDeviceLocation"
+            @set-location="setLocation"
+            @clear-location="clearLocation"
+          />
+        </InfoPanel>
       </Transition>
     </div>
 
