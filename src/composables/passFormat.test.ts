@@ -14,7 +14,7 @@ const base: Pass = {
 describe('describePass', () => {
   it('gives the day, rise and set to the minute and the peak in whole degrees', () => {
     const label = describePass(base, 'UTC', 'en-GB')
-    expect(label.when).toBe('Mon 16, 21:14 to 21:25')
+    expect(label.when).toBe('Mon 16 Nov, 21:14 to 21:25')
     expect(label.when).toMatch(/ to .*21.25/)
     expect(label.when).not.toMatch(/21.14.20/)
     expect(label.peakDeg).toBe(62)

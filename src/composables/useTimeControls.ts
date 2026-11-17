@@ -84,5 +84,10 @@ export function useTimeControls(generatedAt: Ref<string | null>) {
       resetToRealTime()
       poll()
     },
+    /** Move simulation time to `unixMs`, keeping speed and pause. Clamped to the data's window. */
+    jumpTo(unixMs: number) {
+      setTime(unixMs)
+      poll()
+    },
   }
 }

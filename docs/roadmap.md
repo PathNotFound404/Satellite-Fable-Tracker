@@ -140,6 +140,15 @@ Proposed order, easiest and most visible first. Reorder freely.
    - [x] The location stays in the browser, is not stored, and the UI says so.
    - [x] The search does not hold up rendering: about 15 ms for a 7-day search, run when the selection or location changes and then at most once per hour of simulation time.
 5. **Conjunction highlighting:** flag close approaches below a threshold. Clearly labeled as approximate (GP data is not suitable for real collision assessment).
+
+   Acceptance criteria (written 2026-11-16; the owner asked for work to continue while away, so these were not reviewed first):
+   - [x] The info panel has a "Close approaches" section that, on request, lists the satellites passing within 50 km of the selected one in the next 24 hours of simulation time: name, time, miss distance and relative speed, closest first.
+   - [x] Selecting a row moves simulation time to just before that approach and rings the other satellite on the globe in the warning colour.
+   - [x] Times and distances match a second-by-second brute-force search (unit-tested: every approach found, none invented).
+   - [x] The scan is spread over frames with a progress bar, so the globe keeps moving (0.4 to 2.7 s of work for the full catalog, 5 ms per frame).
+   - [x] It is labelled approximate and not for collision assessment; distances are shown in whole kilometres.
+   - [x] Docked and formation-flying objects (relative speed under 0.1 km/s) are left out.
+   - [ ] Frame rate during a scan confirmed on real hardware with `?debug`.
 6. **Space station icon** (owner idea, 2026-11-16): draw members of the `stations` group with a small station glyph instead of a dot. One icon per cluster, since each docked module is a separate catalog entry; ordinary satellites stay in the single points object.
 
    Acceptance criteria (agreed 2026-11-16):
