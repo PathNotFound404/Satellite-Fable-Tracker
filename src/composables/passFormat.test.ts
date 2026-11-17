@@ -14,7 +14,7 @@ const base: Pass = {
 describe('describePass', () => {
   it('gives the day, rise and set to the minute and the peak in whole degrees', () => {
     const label = describePass(base, 'UTC', 'en-GB')
-    expect(label.when).toBe('Mon 21:14 to 21:25')
+    expect(label.when).toBe('Mon 16, 21:14 to 21:25')
     expect(label.when).toMatch(/ to .*21.25/)
     expect(label.when).not.toMatch(/21.14.20/)
     expect(label.peakDeg).toBe(62)
@@ -35,7 +35,7 @@ describe('describePass', () => {
   it('handles a pass that outlasts the search window', () => {
     expect(describePass({ ...base, endsAfterWindow: true }, 'UTC', 'en-GB').when).toMatch(/still up/)
     expect(describePass({ ...base, startsBeforeWindow: true, endsAfterWindow: true }, 'UTC', 'en-GB').when).toBe(
-      'Above the horizon all day',
+      'Above the horizon all week',
     )
   })
 })

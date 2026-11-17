@@ -2,7 +2,7 @@ import type { Pass } from '../orbital/passes'
 
 /** What the panel shows for one pass. */
 export interface PassLabel {
-  /** "Mon 21:14 to 21:25", "Now until 21:25", "Above the horizon all day". */
+  /** "Mon 16, 21:14 to 21:25", "Now until 21:25", "Above the horizon all week". */
   when: string
   /** Peak elevation in whole degrees: GP data doesn't support finer. */
   peakDeg: number
@@ -17,14 +17,15 @@ export interface PassLabel {
  */
 export function describePass(pass: Pass, timeZone?: string, locale?: string): PassLabel {
   const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone })
-  const day = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone })
-  const rise = `${day.format(pass.riseMs)} ${time.format(pass.riseMs)}`
+  const day = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', timeZone })
+  // The day of the month as well as the weekday: the list covers a full week.
+  const rise = `${day.format(pass.riseMs)}, ${time.format(pass.riseMs)}`
   const set = time.format(pass.setMs)
 
   let when: string
-  if (pass.startsBeforeWindow && pass.endsAfterWindow) when = 'Above the horizon all day'
+  if (pass.startsBeforeWindow && pass.endsAfterWindow) when = 'Above the horizon all week'
   else if (pass.startsBeforeWindow) when = `Now until ${set}`
-  else if (pass.endsAfterWindow) when = `${rise}, still up a day from now`
+  else if (pass.endsAfterWindow) when = `${rise}, still up a week from now`
   else when = `${rise} to ${set}`
 
   return { when, peakDeg: Math.round(pass.peakElevationDeg), now: pass.startsBeforeWindow }

@@ -24,7 +24,7 @@ Built in milestones, each one demoable ([roadmap](docs/roadmap.md)).
 
 - Drag to rotate, scroll or pinch to zoom.
 - Click a satellite to see its name, altitude, speed, ground position, inclination and period, and to draw its orbit (solid blue) and its ground track in yellow: solid for the orbit just flown, dashed for the one ahead. Click empty space or press Esc to clear.
-- With a satellite selected, "Passes over you" lists when it is above your horizon in the next 24 hours: rise and set in your local time and how high it gets. Use the browser's location or type coordinates; the location never leaves the browser and is not stored.
+- With a satellite selected, "Passes over you" lists when it is above your horizon in the next 7 days: rise and set in your local time and how high it gets. Use the browser's location or type coordinates; the location never leaves the browser and is not stored.
 - Search by name or NORAD ID (press `/` to jump to the search field); choosing a result selects the satellite and swings the camera round to it.
 - Filter to space stations, Starlink, GPS or weather satellites.
 - Pause, fast-forward (up to 1000x) or run time backwards with the bar at the bottom; Space toggles pause, and "Back to now" returns to live.
