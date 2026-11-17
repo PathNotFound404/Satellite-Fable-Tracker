@@ -4,13 +4,17 @@ import {
   Color,
   DynamicDrawUsage,
   Group,
+  InstancedInterleavedBuffer,
+  InterleavedBufferAttribute,
   Line,
   LineBasicMaterial,
-  LineDashedMaterial,
   Points,
   ShaderMaterial,
   type Vector3,
 } from 'three'
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
 import { gmstRadFromUnixMs, temeStateToEcf } from '../orbital/frames'
 import { sampleGroundTrackEcf, sampleOrbitTeme } from '../orbital/orbitPath'
 import type { SatRec } from '../orbital/propagation'
@@ -28,8 +32,11 @@ import { sceneToKm, writeEcfKmToScene } from './units'
  *
  * The ground track is the path of the point directly below the satellite, one orbit
  * behind and one ahead. It is fixed to the Earth, so it needs no per-frame rotation,
- * only the same periodic re-sample to keep it centred on the present. It is drawn
- * dashed and neutral so it can't be mistaken for the solid, accent-coloured orbit.
+ * only a periodic re-sample to keep it centred on the present. It is drawn in its own
+ * colour so it can't be mistaken for the orbit, and in two halves so its direction is
+ * readable: where the satellite has been is solid and dimmer, where it is going is
+ * dashed and brighter. Plain WebGL lines are always one pixel wide, so the track uses
+ * three's screen-space wide lines (LineSegments2) to get a two-pixel stroke.
  */
 
 /** Matches --color-accent in tokens.css. */
@@ -41,7 +48,19 @@ const RESAMPLE_AFTER_MS = 20_000
 const GROUND_TRACK_SAMPLES = 361
 /** Just above the surface (about 19 km) so the line doesn't fight the globe for depth. */
 const GROUND_TRACK_RADIUS = 1.003
-const GROUND_TRACK_COLOR = 0xf5f5f7
+/** Matches --color-ground-track in tokens.css. */
+const GROUND_TRACK_COLOR = 0xffd60a
+/** CSS pixels. */
+const GROUND_TRACK_WIDTH_PX = 2
+const GROUND_TRACK_PAST_OPACITY = 0.55
+const GROUND_TRACK_AHEAD_OPACITY = 0.95
+/** Line segments in each half (past and ahead). */
+const GROUND_TRACK_HALF_SEGMENTS = (GROUND_TRACK_SAMPLES - 1) / 2
+/**
+ * More often than the orbit, so the join between the solid and dashed halves stays
+ * within about 40 km of the point under a low satellite.
+ */
+const GROUND_TRACK_RESAMPLE_AFTER_MS = 5_000
 /** Dash and gap lengths in scene units (Earth radii): about 115 km and 75 km. */
 const GROUND_TRACK_DASH = 0.018
 const GROUND_TRACK_GAP = 0.012
@@ -105,30 +124,65 @@ export function createSelectionVisuals(pixelRatio: number): SelectionVisuals {
   orbit.renderOrder = 2
   object.add(orbit)
 
-  // Ground track
-  const trackPositions = new Float32Array(GROUND_TRACK_SAMPLES * 3)
-  const trackDistances = new Float32Array(GROUND_TRACK_SAMPLES)
-  const trackPositionAttribute = new BufferAttribute(trackPositions, 3).setUsage(DynamicDrawUsage)
-  // LineDashedMaterial reads the distance along the line from this attribute. Filled in
-  // by hand on each re-sample; Line.computeLineDistances would allocate every time.
-  const trackDistanceAttribute = new BufferAttribute(trackDistances, 1).setUsage(DynamicDrawUsage)
-  const trackGeometry = new BufferGeometry()
-  trackGeometry.setAttribute('position', trackPositionAttribute)
-  trackGeometry.setAttribute('lineDistance', trackDistanceAttribute)
-  trackGeometry.setDrawRange(0, 0)
-  const trackMaterial = new LineDashedMaterial({
+  // Ground track: two wide lines. Each segment is one instance holding its start and
+  // end point; the buffers are filled by hand on each re-sample because the library's
+  // setPositions and computeLineDistances allocate new buffers every call.
+  const pastSegments = new Float32Array(GROUND_TRACK_HALF_SEGMENTS * 6)
+  const aheadSegments = new Float32Array(GROUND_TRACK_HALF_SEGMENTS * 6)
+  /** Distance along the line at the start and end of each segment, for the dashes. */
+  const aheadDistances = new Float32Array(GROUND_TRACK_HALF_SEGMENTS * 2)
+  const pastBuffer = new InstancedInterleavedBuffer(pastSegments, 6, 1).setUsage(DynamicDrawUsage)
+  const aheadBuffer = new InstancedInterleavedBuffer(aheadSegments, 6, 1).setUsage(DynamicDrawUsage)
+  const aheadDistanceBuffer = new InstancedInterleavedBuffer(aheadDistances, 2, 1).setUsage(
+    DynamicDrawUsage,
+  )
+
+  const pastGeometry = new LineSegmentsGeometry()
+  pastGeometry.setAttribute('instanceStart', new InterleavedBufferAttribute(pastBuffer, 3, 0))
+  pastGeometry.setAttribute('instanceEnd', new InterleavedBufferAttribute(pastBuffer, 3, 3))
+  pastGeometry.instanceCount = 0
+  const aheadGeometry = new LineSegmentsGeometry()
+  aheadGeometry.setAttribute('instanceStart', new InterleavedBufferAttribute(aheadBuffer, 3, 0))
+  aheadGeometry.setAttribute('instanceEnd', new InterleavedBufferAttribute(aheadBuffer, 3, 3))
+  aheadGeometry.setAttribute(
+    'instanceDistanceStart',
+    new InterleavedBufferAttribute(aheadDistanceBuffer, 1, 0),
+  )
+  aheadGeometry.setAttribute(
+    'instanceDistanceEnd',
+    new InterleavedBufferAttribute(aheadDistanceBuffer, 1, 1),
+  )
+  aheadGeometry.instanceCount = 0
+
+  // The line width is in CSS pixels: LineSegments2 reads the viewport size from the
+  // renderer before each draw, so no resize or pixel-ratio handling is needed here.
+  const pastMaterial = new LineMaterial({
     color: GROUND_TRACK_COLOR,
+    linewidth: GROUND_TRACK_WIDTH_PX,
+    transparent: true,
+    opacity: GROUND_TRACK_PAST_OPACITY,
+    depthWrite: false,
+  })
+  const aheadMaterial = new LineMaterial({
+    color: GROUND_TRACK_COLOR,
+    linewidth: GROUND_TRACK_WIDTH_PX,
+    dashed: true,
     dashSize: GROUND_TRACK_DASH,
     gapSize: GROUND_TRACK_GAP,
     transparent: true,
-    opacity: 0.7,
+    opacity: GROUND_TRACK_AHEAD_OPACITY,
     depthWrite: false,
   })
-  const track = new Line(trackGeometry, trackMaterial)
-  track.name = 'ground-track'
-  track.frustumCulled = false
-  track.renderOrder = 2
-  object.add(track)
+  const trackPast = new LineSegments2(pastGeometry, pastMaterial)
+  trackPast.name = 'ground-track-past'
+  trackPast.frustumCulled = false
+  trackPast.renderOrder = 2
+  object.add(trackPast)
+  const trackAhead = new LineSegments2(aheadGeometry, aheadMaterial)
+  trackAhead.name = 'ground-track-ahead'
+  trackAhead.frustumCulled = false
+  trackAhead.renderOrder = 2
+  object.add(trackAhead)
 
   // Marker: a single point whose object position is moved each frame.
   const markerGeometry = new BufferGeometry()
@@ -151,9 +205,12 @@ export function createSelectionVisuals(pixelRatio: number): SelectionVisuals {
 
   let target: { satrec: SatRec; meanMotionRevPerDay: number } | null = null
   let sampledAtMs = Number.NaN
+  let trackSampledAtMs = Number.NaN
   let sampledGmstRad = 0
   const temeSamples = new Float64Array(ORBIT_SAMPLES * 3)
   const trackSamples = new Float64Array(GROUND_TRACK_SAMPLES * 3)
+  /** The track in scene coordinates, before it is split into segments. */
+  const trackPoints = new Float32Array(GROUND_TRACK_SAMPLES * 3)
   const trackRadiusKm = sceneToKm(GROUND_TRACK_RADIUS)
   const stateScratch = new Float64Array(6)
 
@@ -177,38 +234,61 @@ export function createSelectionVisuals(pixelRatio: number): SelectionVisuals {
       writeEcfKmToScene(stateScratch[0]!, stateScratch[1]!, stateScratch[2]!, orbitPositions, i * 3)
     }
     orbitAttribute.needsUpdate = true
+    orbitGeometry.setDrawRange(0, written)
+    sampledAtMs = simTimeMs
+  }
 
-    const trackWritten = sampleGroundTrackEcf(
+  function resampleTrack(simTimeMs: number): void {
+    if (target === null) return
+    trackSampledAtMs = simTimeMs
+    const written = sampleGroundTrackEcf(
       target.satrec,
       simTimeMs,
       target.meanMotionRevPerDay,
       GROUND_TRACK_SAMPLES,
       trackSamples,
     )
-    let distance = 0
-    for (let i = 0; i < trackWritten; i++) {
+    // A satellite that can't be propagated across the whole window (about to decay)
+    // gets no track rather than a partial one whose middle isn't the present.
+    if (written < GROUND_TRACK_SAMPLES) {
+      pastGeometry.instanceCount = 0
+      aheadGeometry.instanceCount = 0
+      return
+    }
+    for (let i = 0; i < GROUND_TRACK_SAMPLES; i++) {
       const offset = i * 3
       writeEcfKmToScene(
         trackSamples[offset]! * trackRadiusKm,
         trackSamples[offset + 1]! * trackRadiusKm,
         trackSamples[offset + 2]! * trackRadiusKm,
-        trackPositions,
+        trackPoints,
         offset,
       )
-      if (i > 0) {
-        distance += Math.hypot(
-          trackPositions[offset]! - trackPositions[offset - 3]!,
-          trackPositions[offset + 1]! - trackPositions[offset - 2]!,
-          trackPositions[offset + 2]! - trackPositions[offset - 1]!,
-        )
-      }
-      trackDistances[i] = distance
     }
-    trackPositionAttribute.needsUpdate = true
-    trackDistanceAttribute.needsUpdate = true
-    trackGeometry.setDrawRange(0, trackWritten)
-    orbitGeometry.setDrawRange(0, written)
-    sampledAtMs = simTimeMs
+    // Segment s runs from point s to point s + 1, which are six consecutive numbers.
+    // The dash distance starts at the present, so the dashes lead away from the
+    // satellite.
+    let distance = 0
+    for (let s = 0; s < GROUND_TRACK_HALF_SEGMENTS; s++) {
+      const pastFrom = s * 3
+      const aheadFrom = (GROUND_TRACK_HALF_SEGMENTS + s) * 3
+      for (let k = 0; k < 6; k++) {
+        pastSegments[s * 6 + k] = trackPoints[pastFrom + k]!
+        aheadSegments[s * 6 + k] = trackPoints[aheadFrom + k]!
+      }
+      aheadDistances[s * 2] = distance
+      distance += Math.hypot(
+        trackPoints[aheadFrom + 3]! - trackPoints[aheadFrom]!,
+        trackPoints[aheadFrom + 4]! - trackPoints[aheadFrom + 1]!,
+        trackPoints[aheadFrom + 5]! - trackPoints[aheadFrom + 2]!,
+      )
+      aheadDistances[s * 2 + 1] = distance
+    }
+    pastBuffer.needsUpdate = true
+    aheadBuffer.needsUpdate = true
+    aheadDistanceBuffer.needsUpdate = true
+    pastGeometry.instanceCount = GROUND_TRACK_HALF_SEGMENTS
+    aheadGeometry.instanceCount = GROUND_TRACK_HALF_SEGMENTS
   }
 
   return {
@@ -217,10 +297,12 @@ export function createSelectionVisuals(pixelRatio: number): SelectionVisuals {
     setTarget(nextTarget) {
       target = nextTarget
       sampledAtMs = Number.NaN
+      trackSampledAtMs = Number.NaN
       object.visible = nextTarget !== null
       if (nextTarget === null) {
         orbitGeometry.setDrawRange(0, 0)
-        trackGeometry.setDrawRange(0, 0)
+        pastGeometry.instanceCount = 0
+        aheadGeometry.instanceCount = 0
       }
     },
 
@@ -229,6 +311,9 @@ export function createSelectionVisuals(pixelRatio: number): SelectionVisuals {
 
       // NaN (never sampled) fails this comparison, so it also triggers the first sample.
       if (!(Math.abs(simTimeMs - sampledAtMs) < RESAMPLE_AFTER_MS)) resample(simTimeMs)
+      if (!(Math.abs(simTimeMs - trackSampledAtMs) < GROUND_TRACK_RESAMPLE_AFTER_MS)) {
+        resampleTrack(simTimeMs)
+      }
 
       // Earth-fixed coordinates rotate by -GMST about the pole, which is +y in the
       // scene, so the drift since sampling is a rotation of -(delta GMST) about y.
@@ -245,8 +330,10 @@ export function createSelectionVisuals(pixelRatio: number): SelectionVisuals {
     dispose() {
       orbitGeometry.dispose()
       orbitMaterial.dispose()
-      trackGeometry.dispose()
-      trackMaterial.dispose()
+      pastGeometry.dispose()
+      pastMaterial.dispose()
+      aheadGeometry.dispose()
+      aheadMaterial.dispose()
       markerGeometry.dispose()
       markerMaterial.dispose()
     },

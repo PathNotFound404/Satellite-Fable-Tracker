@@ -10,6 +10,8 @@
   --color-accent: #0a84ff;
   --color-accent-contrast: #ffffff;
   --color-warning: #ff9f0a;
+  /* Matches GROUND_TRACK_COLOR in three/selectionVisuals.ts */
+  --color-ground-track: #ffd60a;
   --color-danger: #ff453a;
   --color-success: #30d158;
 

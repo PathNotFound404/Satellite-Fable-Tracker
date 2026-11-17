@@ -128,7 +128,8 @@ Proposed order, easiest and most visible first. Reorder freely.
    - [x] The track of the selected satellite is drawn on the globe surface for one orbit behind and one ahead.
    - [x] It passes directly under the satellite's current position (unit-tested within 1 km as time runs).
    - [x] It follows simulation time and updates when the selection changes.
-   - [x] It is visually distinct from the orbit line (dashed and neutral, against the solid accent-coloured orbit).
+   - [x] It is visually distinct from the orbit line (yellow and two pixels wide, against the thin accent-coloured orbit).
+   - [x] Its direction is readable (added 2026-11-16 after owner feedback): solid and dimmer behind the satellite, dashed and brighter ahead, with a legend in the info panel.
 4. **Next-pass predictor:** browser geolocation (with a manual fallback), next passes over the next 24 hours with rise, peak elevation and set times. Tested against an independent pass prediction for a known location and data set.
 5. **Conjunction highlighting:** flag close approaches below a threshold. Clearly labeled as approximate (GP data is not suitable for real collision assessment).
 

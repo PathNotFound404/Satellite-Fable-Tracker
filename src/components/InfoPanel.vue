@@ -97,6 +97,18 @@ const epoch = computed(() =>
       </div>
     </dl>
 
+    <ul class="panel__legend" aria-label="Lines on the globe">
+      <li><span class="panel__swatch" aria-hidden="true"></span>Orbit</li>
+      <li>
+        <span class="panel__swatch panel__swatch--past" aria-hidden="true"></span>Ground track,
+        past
+      </li>
+      <li>
+        <span class="panel__swatch panel__swatch--ahead" aria-hidden="true"></span>Ground track,
+        ahead
+      </li>
+    </ul>
+
     <p class="panel__epoch numeric">Orbit data from {{ epoch }} UTC. Positions are approximate.</p>
   </section>
 </template>
@@ -204,6 +216,39 @@ const epoch = computed(() =>
   margin: 0;
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
+}
+
+.panel__legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+}
+
+.panel__legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.panel__swatch {
+  flex: none;
+  width: var(--space-6);
+  border-top: 2px solid var(--color-accent);
+}
+
+.panel__swatch--past {
+  border-top-color: var(--color-ground-track);
+  opacity: 0.55;
+}
+
+.panel__swatch--ahead {
+  border-top-color: var(--color-ground-track);
+  border-top-style: dashed;
 }
 
 .panel__epoch {
