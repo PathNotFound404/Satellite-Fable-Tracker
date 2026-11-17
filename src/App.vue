@@ -18,6 +18,7 @@ import { useSatelliteLayer } from './composables/useSatelliteLayer'
 import { useSatellites } from './composables/useSatellites'
 import { useSelection } from './composables/useSelection'
 import { useSelectionVisuals } from './composables/useSelectionVisuals'
+import { useStationLayer } from './composables/useStationLayer'
 import { useSunlight } from './composables/useSunlight'
 import { useTelemetry } from './composables/useTelemetry'
 import { useTimeControls } from './composables/useTimeControls'
@@ -31,6 +32,7 @@ const { file, status, errorMessage } = useSatellites()
 const globeScene = shallowRef<GlobeScene | null>(null)
 const { catalog, layer, trackedCount, stats } = useSatelliteLayer(globeScene, file)
 useSunlight(globeScene)
+const { representativeOf: stationRepresentativeOf } = useStationLayer(globeScene, catalog, layer)
 
 const { selectedIndex, select, clear } = useSelection()
 useSelectionVisuals(globeScene, catalog, layer, selectedIndex)
@@ -84,7 +86,8 @@ function onPick(point: { x: number; y: number; width: number; height: number; is
     point.isTouch ? PICK_TOLERANCE_TOUCH_PX : PICK_TOLERANCE_MOUSE_PX,
   )
   if (index === -1) clear()
-  else select(index)
+  // A station is a dozen catalog entries in one spot; a click on it selects its core module.
+  else select(stationRepresentativeOf(index))
 }
 
 // --- Search ------------------------------------------------------------------------

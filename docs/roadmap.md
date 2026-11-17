@@ -141,6 +141,13 @@ Proposed order, easiest and most visible first. Reorder freely.
    - [x] The search does not hold up rendering: about 15 ms for a 7-day search, run when the selection or location changes and then at most once per hour of simulation time.
 5. **Conjunction highlighting:** flag close approaches below a threshold. Clearly labeled as approximate (GP data is not suitable for real collision assessment).
 6. **Space station icon** (owner idea, 2026-11-16): draw members of the `stations` group with a small station glyph instead of a dot. One icon per cluster, since each docked module is a separate catalog entry; ordinary satellites stay in the single points object.
+
+   Acceptance criteria (agreed 2026-11-16):
+   - [x] Space stations show a small monochrome station glyph over their dot.
+   - [x] One glyph per station, not one per docked module (members within 50 km share one, unit-tested).
+   - [x] Clicking the glyph selects the station's core module, and the group filter hides and shows glyphs like any other satellite.
+   - [x] Ordinary satellites stay in the single points object; glyphs are one extra draw call.
+   - [ ] No measurable frame rate cost (to confirm on real hardware with `?debug`).
 7. **Catalog details** (owner request, 2026-11-16): owner country, launch date, launch site and object type in the info panel. The GP data has none of these; they come from the CelesTrak satellite catalog (SATCAT), so this needs one more download per pipeline run and a change to the fetch script and the data contract, to be agreed before work starts.
 
 Each stretch feature needs its own acceptance criteria written before work starts.
