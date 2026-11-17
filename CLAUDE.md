@@ -104,6 +104,8 @@ These are the easiest places to introduce subtle bugs. Be careful.
 - Import only satellite.js's plain-JS API (`sgp4`, `json2satrec`, `gstime`, ...). Its WebAssembly builds are stubbed out in `vite.config.ts` and are not available at runtime (ADR 0002).
 - Never call `Date.now()` to decide where a satellite is. Simulation time comes from `useSimClock` (`clock.nowMs()`), which the time controls can pause, speed up and reverse.
 - Positions on screen are extrapolated in the vertex shader between SGP4 refreshes (`three/extrapolation.ts` has the formula twice, GLSL and CPU; change both together). Anything that needs "where is satellite i right now" (picking, panel, camera) must go through `satelliteLayer.getScenePosition` or a fresh `propagateTeme`/`propagateEcf` call, never the raw position buffer.
+- Anything that takes more than a few milliseconds (catalog build, close-approach scan) is cut into slices spread over frames; pass prediction is the size limit for a single synchronous call.
+- Close approaches are a demonstration. Keep the "approximate, not for collision assessment" wording wherever they are shown.
 - Add tests with known-good reference values (for example published SGP4 test vectors or a known ISS position) rather than tests that only re-run the same code.
 
 ## Performance targets
@@ -118,6 +120,7 @@ Add `?debug` to the URL for a live frame rate and per-frame propagation cost rea
 
 - The scheduled workflow fetches from CelesTrak every 6 hours, writes JSON matching `docs/data-contract.md`, and deploys it with the Vercel CLI. Data is never committed (ADR 0001).
 - CelesTrak fair use: never download the same group more than once per 2-hour update, stop on the first non-200 response with no retries, and never fetch `starlink` separately (it's a subset of `active`). Full rules in `docs/ci-cd.md`.
+- Catalog details (owner, launch date and so on) come from one CelesTrak SATCAT request at most once per 24 hours; a SATCAT failure must never block the orbital data (`scripts/lib/satcat.ts`).
 - If the fetch fails, **keep the last good file**. Never overwrite good data with an empty or partial result.
 - Until the pipeline exists, develop against the sample file in `public/data/sample.json`.
 

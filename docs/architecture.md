@@ -52,12 +52,18 @@ Both paths produce the same build output. The only difference is where `satellit
 src/
   types/        data contract types (SatelliteFile, OmmRecord, ...)
   orbital/      pure TS: satrec creation, propagation, TEME->ECF, altitude,
-                speed, look angles, pass prediction. No Vue, no three.js.
-  three/        scene, camera, controls, globe, point cloud, orbit line,
-                picking, unit conversion (km -> scene units)
-  composables/  useSatellites (load + index data), useSelection,
-                useSimClock, useFilters
-  components/   InfoPanel, SearchBox, GroupFilter, DataAgeBadge, ...
+                speed, orbit and ground-track sampling, Sun position, pass
+                prediction, close approaches. No Vue, no three.js.
+  three/        scene, camera, controls, globe, point cloud, extrapolation,
+                selection visuals (marker, orbit, ground track), station
+                glyphs, highlight marker, picking, unit conversion
+  composables/  useSatellites (load), useSatelliteLayer (catalog + point
+                cloud), useSimClock, useTimeControls, useSelection,
+                useFilters, useTelemetry, usePasses, useObserverLocation,
+                useConjunctions, plus small pure helpers for formatting
+  components/   InfoPanel, PassPredictor, CloseApproaches, SearchBox,
+                GroupFilter, TimeControls, DataAgeBadge, DebugReadout,
+                GlobeCanvas
   App.vue
   main.ts
 ```
@@ -70,7 +76,7 @@ src/
 
 ## Data flow at runtime
 
-1. **Load:** `useSatellites` fetches `/data/satellites.json` once, checks `schemaVersion`, and builds `satrec`s from the OMM records. Records that fail to parse are dropped and counted.
+1. **Load:** `useSatellites` fetches `/data/satellites.json` once and checks `schemaVersion`. `useSatelliteLayer` then builds `satrec`s from the OMM records in 8 ms slices (`buildCatalogInSlices`), so the page stays responsive during the roughly 200 ms that takes on a laptop. Records that fail to parse are dropped and counted. A failed download shows a message with a retry button; a browser without WebGL gets an explanation instead of a blank page.
 2. **Index:** keep satellites in plain arrays indexed by a stable position `i`. That index is shared by the satrec array, the position buffer, the filter mask and picking. Groups are resolved to index sets once.
 3. **Clock:** `useSimClock` is the single source of simulation time. `useTimeControls` drives it from the UI (pause, 1x to 1000x, reverse, back to now) and keeps it within 7 days of the data and the present.
 4. **Propagate:** each frame, a slice of the catalog (sized so every satellite is refreshed about once a second) goes through `propagateEcf(satrec, simTime)`: TEME state (km, km/s) → ECF via GMST → scene units → written into shared `Float32Array`s for position, velocity and the time they were computed. Failures hide that point (see below).
@@ -129,3 +135,26 @@ Measured in M3: a full SGP4 pass over the 16,895-satellite catalog takes about 2
 - No allocations in the render loop: preallocate vectors, typed arrays and the GMST/rotation scratch values.
 - Filtering updates a mask (size attribute or alpha) instead of rebuilding geometry.
 - Satellite data is not deep-reactive. Store arrays with `shallowRef` or outside Vue.
+
+## Lighthouse check
+
+Run on 2026-11-17 against the live site with Lighthouse in headless Chrome (performance category, hardware GPU).
+
+| | Before | After |
+|---|---|---|
+| Desktop score | 72 | 78 |
+| Desktop total blocking time | 960 ms | 510 ms |
+| Mobile score (4x CPU slowdown, slow 4G) | 66 | 69 |
+| Mobile first contentful paint | 2.3 s | 0.8 s |
+| Mobile longest tasks | 1.5 s and 1.5 s | 1.7 s and 0.5 s |
+
+Accessibility, best practices and SEO each scored 100. "After" was measured on a local build of the same code, so its network timings are not comparable; the blocking-time and long-task figures are.
+
+What was changed:
+
+- **Catalog build split into slices.** Setting up SGP4 for about 17,000 satellites was one task of roughly 450 ms on a laptop. It now runs 8 ms at a time.
+- **Static loading shell in `index.html`.** First paint no longer waits for the three.js bundle to download.
+
+What is left: one startup task of about half a second on a laptop, which is creating the WebGL context, compiling shaders and uploading the Earth texture. That is the cost of opening on a 3D scene and was not pursued further.
+
+Caveat: with software rendering (headless Chrome's default) every rendered frame counts as a long task, and the same page scores around 50 with a blocking time of several seconds. Those figures measure the software renderer, not the app.

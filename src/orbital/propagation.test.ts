@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { eciToEcf, eciToGeodetic, twoline2satrec } from 'satellite.js'
 import { describe, expect, it } from 'vitest'
 import { parseSatelliteFile, type OmmRecord } from '../types/satellite-data'
-import { buildCatalog } from './catalog'
+import { buildCatalog, buildCatalogInSlices } from './catalog'
 import { EARTH_RADIUS_KM, MS_PER_MINUTE } from './constants'
 import { gmstRadFromUnixMs, julianDateFromUnixMs, temeStateToEcf } from './frames'
 import {
@@ -252,5 +252,25 @@ describe('buildCatalog', () => {
     expect(catalog.count).toBe(sample.count)
     expect(catalog.indexByNoradId.has(1)).toBe(false)
     expect(catalog.groupIndices.stations).toHaveLength(sample.groups.stations.length)
+  })
+})
+
+describe('buildCatalogInSlices', () => {
+  it('builds the same catalog as buildCatalog', async () => {
+    const sliced = await buildCatalogInSlices(sample, () => Promise.resolve())
+    const whole = buildCatalog(sample)
+    expect(sliced!.count).toBe(whole.count)
+    expect(sliced!.records).toEqual(whole.records)
+    expect([...sliced!.indexByNoradId]).toEqual([...whole.indexByNoradId])
+    expect(sliced!.groupIndices).toEqual(whole.groupIndices)
+    expect(sliced!.droppedCount).toBe(whole.droppedCount)
+  })
+
+  it('stops and returns null when cancelled at a pause', async () => {
+    // Enough records that the build can't finish in one slice.
+    const big = { ...sample, satellites: Array.from({ length: 400 }, () => sample.satellites).flat() }
+    big.count = big.satellites.length
+    const result = await buildCatalogInSlices(big, () => Promise.resolve(), () => true)
+    expect(result).toBeNull()
   })
 })
