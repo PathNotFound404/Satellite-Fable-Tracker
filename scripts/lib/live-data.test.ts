@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import { parseSatelliteFile } from '../../src/types/satellite-data.ts'
 import { fetchLiveData, isFresh, productionUrlFromEnv } from './live-data.ts'
+import { toCatalogDetails } from './satcat.ts'
 import { toOmmRecord } from './validate.ts'
 
 describe('productionUrlFromEnv', () => {
@@ -104,7 +105,8 @@ describe('public/data/sample.json', () => {
     expect(ids.size).toBe(sample.count)
     expect(sample.groups.stations).toContain(25544)
     for (const record of sample.satellites) {
-      expect(toOmmRecord(record)).toEqual(record)
+      // Orbital fields plus the optional catalog details, and nothing else.
+      expect({ ...toOmmRecord(record), ...toCatalogDetails(record)?.details }).toEqual(record)
     }
     for (const [name, groupIds] of Object.entries(sample.groups)) {
       expect(groupIds.length, name).toBeGreaterThan(0)

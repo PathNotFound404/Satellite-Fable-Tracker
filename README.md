@@ -17,13 +17,13 @@ Built in milestones, each one demoable ([roadmap](docs/roadmap.md)).
 | 3 | Propagate and plot | Done: full catalog moving in real time |
 | 4 | Select, info panel, orbit | Done: click a satellite for live stats and its orbit |
 | 5 | Search and filters | Done: search by name or NORAD ID, group filters with counts |
-| 6 | Stretch features | Time controls, day/night shading, ground track and next-pass predictor and space station glyphs done; conjunction highlighting and catalog details next |
+| 6 | Stretch features | Time controls, day/night shading, ground track and next-pass predictor and space station glyphs and catalog details done; conjunction highlighting next |
 | 7 | Polish and README | Not started |
 
 ## Using it
 
 - Drag to rotate, scroll or pinch to zoom.
-- Click a satellite to see its name, altitude, speed, ground position, inclination and period, and to draw its orbit (solid blue) and its ground track in yellow: solid for the orbit just flown, dashed for the one ahead. Click empty space or press Esc to clear.
+- Click a satellite to see its name, altitude, speed, ground position, inclination and period, its owner, launch date, launch site, type and status, and to draw its orbit (solid blue) and its ground track in yellow: solid for the orbit just flown, dashed for the one ahead. Click empty space or press Esc to clear.
 - With a satellite selected, "Passes over you" lists when it is above your horizon in the next 7 days: rise and set in your local time and how high it gets. Use the browser's location or type coordinates; the location never leaves the browser and is not stored.
 - Search by name or NORAD ID (press `/` to jump to the search field); choosing a result selects the satellite and swings the camera round to it.
 - Filter to space stations, Starlink, GPS or weather satellites.

@@ -148,7 +148,15 @@ Proposed order, easiest and most visible first. Reorder freely.
    - [x] Clicking the glyph selects the station's core module, and the group filter hides and shows glyphs like any other satellite.
    - [x] Ordinary satellites stay in the single points object; glyphs are one extra draw call.
    - [ ] No measurable frame rate cost (to confirm on real hardware with `?debug`).
-7. **Catalog details** (owner request, 2026-11-16): owner country, launch date, launch site and object type in the info panel. The GP data has none of these; they come from the CelesTrak satellite catalog (SATCAT), so this needs one more download per pipeline run and a change to the fetch script and the data contract, to be agreed before work starts.
+7. **Catalog details** (owner request, 2026-11-16): owner country, launch date, launch site and object type in the info panel. The GP data has none of these; they come from the CelesTrak satellite catalog (SATCAT), so this needs one more download and a change to the fetch script and the data contract.
+
+   Acceptance criteria (written 2026-11-16; the owner asked for the feature and for work to continue while away, so these were not reviewed first):
+   - [x] The info panel shows owner, launch date, launch site, object type and status in words, for satellites the catalog covers.
+   - [x] The details come from one CelesTrak SATCAT request made by the pipeline at most once per 24 hours; the browser never calls CelesTrak.
+   - [x] A SATCAT failure never blocks or damages the orbital data: old details are kept and the run carries a warning (unit-tested).
+   - [x] The fields are optional in the data contract, so older files still load, and an unknown code is shown as it is.
+   - [x] No workflow file change.
+   - [ ] One scheduled run has added details to the live site.
 
 Each stretch feature needs its own acceptance criteria written before work starts.
 

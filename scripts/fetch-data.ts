@@ -18,7 +18,9 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseSatelliteFile } from '../src/types/satellite-data.ts'
 import { fetchAllGroups } from './lib/celestrak.ts'
+import type { SatelliteFile } from '../src/types/satellite-data.ts'
 import { fetchLiveData, isFresh, productionUrlFromEnv } from './lib/live-data.ts'
+import { addCatalogDetails } from './lib/satcat.ts'
 import { buildSatelliteFile } from './lib/validate.ts'
 
 const OUTPUT_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../public/data/satellites.json')
@@ -65,6 +67,7 @@ async function main(): Promise<void> {
 
   // Freshness guard, part 2: the live site. Also gives us the count to compare against.
   let liveCount: number | null = null
+  let liveFile: SatelliteFile | null = null
   const productionUrl = productionUrlFromEnv(process.env)
   if (productionUrl === null) {
     log('PRODUCTION_URL is not set; skipping the live-site freshness and count checks.')
@@ -75,6 +78,7 @@ async function main(): Promise<void> {
         return skip(`Live data was fetched at ${live.file.generatedAt}, less than 2 hours ago.`)
       }
       liveCount = live.file.count
+      liveFile = live.file
       log(`Live file: ${liveCount} satellites from ${live.file.generatedAt}.`)
     } else if (live.kind === 'missing') {
       log('No live file yet (first run).')
@@ -106,13 +110,22 @@ async function main(): Promise<void> {
   for (const note of built.notes) log(note)
   if (!built.ok) fail(`Validation failed:\n  - ${built.errors.join('\n  - ')}`)
 
+  // Catalog details come last and can't fail the run: the orbital data above is what
+  // matters, and the SATCAT may only be asked for once a day (see lib/satcat.ts).
+  const detailed = await addCatalogDetails({ file: built.file, live: liveFile, now })
+  for (const note of detailed.notes) log(note)
+  if (detailed.warning !== null) {
+    log(`Warning: ${detailed.warning}`)
+    if (inGitHubActions) console.log(`::warning title=Catalog details not refreshed::${detailed.warning}`)
+  }
+
   // Write to a temp file and rename, so a crash can never leave a half-written file.
   await mkdir(dirname(OUTPUT_PATH), { recursive: true })
   const tempPath = `${OUTPUT_PATH}.tmp`
-  await writeFile(tempPath, JSON.stringify(built.file))
+  await writeFile(tempPath, JSON.stringify(detailed.file))
   await rename(tempPath, OUTPUT_PATH)
 
-  const { file } = built
+  const { file } = detailed
   log(
     `Wrote ${file.count} satellites (stations ${file.groups.stations.length}, starlink ${file.groups.starlink.length}, gps-ops ${file.groups['gps-ops'].length}, weather ${file.groups.weather.length}).`,
   )

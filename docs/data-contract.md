@@ -18,6 +18,8 @@ CelesTrak GP data, queried as `https://celestrak.org/NORAD/elements/gp.php?GROUP
 | `gps-ops` | Tag only |
 | `weather` | Tag only |
 
+Catalog details (owner, launch date, launch site, object type, status) come from the CelesTrak satellite catalog (SATCAT), queried as `https://celestrak.org/satcat/records.php?GROUP=active&FORMAT=JSON`, at most once per 24 hours. See [Catalog details](#catalog-details).
+
 ## Schema (version 1)
 
 ```jsonc
@@ -26,6 +28,7 @@ CelesTrak GP data, queried as `https://celestrak.org/NORAD/elements/gp.php?GROUP
   "generatedAt": "2026-11-16T18:23:05Z",   // UTC, when the pipeline fetched the data
   "source": "CelesTrak GP",
   "count": 10234,                            // == satellites.length
+  "catalogCheckedAt": "2026-11-16T18:23:05Z", // optional: when the SATCAT was last asked for
   "groups": {                                // group name -> NORAD catalog IDs
     "stations": [25544, 48274],
     "starlink": [44713, 44714],
@@ -50,7 +53,12 @@ CelesTrak GP data, queried as `https://celestrak.org/NORAD/elements/gp.php?GROUP
       "REV_AT_EPOCH": 49999,
       "BSTAR": 0.00025,
       "MEAN_MOTION_DOT": 0.00001,
-      "MEAN_MOTION_DDOT": 0
+      "MEAN_MOTION_DDOT": 0,
+      "OWNER": "ISS",                        // the five fields below are optional
+      "LAUNCH_DATE": "1998-11-20",
+      "LAUNCH_SITE": "TYMSC",
+      "OBJECT_TYPE": "PAY",
+      "OPS_STATUS_CODE": "+"
     }
   ]
 }
@@ -62,6 +70,13 @@ CelesTrak GP data, queried as `https://celestrak.org/NORAD/elements/gp.php?GROUP
 - **Satellite records keep CelesTrak's OMM field names unchanged,** so they can go straight to satellite.js's OMM parser (confirm the exact function name for the installed satellite.js version in M3) and stay comparable with the source. Only the fields above are kept; others are dropped to save size.
 - **Units are OMM's:** `MEAN_MOTION` in revolutions/day, angles in degrees, `EPOCH` in UTC without a `Z` suffix (parse as UTC).
 - **`NORAD_CAT_ID` is the unique key.** Treat it as a number. 6-digit catalog numbers (above 99999) already appear in CelesTrak's JSON as plain numbers and need no special handling here: alpha-5 encoding only exists in the fixed-width TLE text format, which we don't use.
+
+### Catalog details
+
+- `OWNER`, `LAUNCH_DATE`, `LAUNCH_SITE`, `OBJECT_TYPE` and `OPS_STATUS_CODE` are copied from the SATCAT record with the same `NORAD_CAT_ID`, with the SATCAT's field names and codes unchanged. The app turns codes into words (`src/composables/catalogDetails.ts`) and shows an unknown code as it is.
+- **All five are optional,** per record and per field. A satellite missing from the SATCAT, or a field that fails validation (a code of 1 to 8 characters, a `YYYY-MM-DD` date, a known object type), is simply left out. Adding optional fields did not change the schema version.
+- `catalogCheckedAt` is when the pipeline last asked for the SATCAT, whether or not it worked. The next request is made no sooner than 24 hours later. In between, and after a failed request, details are carried over from the file that is live.
+- A SATCAT problem never blocks the orbital data: the run still deploys, with the previous details and a warning on the workflow run.
 
 ### Groups
 

@@ -53,6 +53,7 @@ const sample: SatelliteFile = {
   count: satellites.length,
   groups,
   satellites,
+  ...(full.catalogCheckedAt === undefined ? {} : { catalogCheckedAt: full.catalogCheckedAt }),
 }
 
 await writeFile(resolve(dataDir, 'sample.json'), `${JSON.stringify(sample, null, 1)}\n`)
