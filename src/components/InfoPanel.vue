@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { describeCatalogDetails } from '../composables/catalogDetails'
 import { periodMinutes } from '../orbital/propagation'
 import type { Telemetry } from '../orbital/orbitPath'
 import type { OmmRecord } from '../types/satellite-data'
@@ -25,6 +26,7 @@ const altitude = computed(() => wholeNumber.format(props.telemetry.altitudeKm))
 const speed = computed(() => twoDecimals.format(props.telemetry.speedKmS))
 const inclination = computed(() => oneDecimal.format(props.record.INCLINATION))
 const period = computed(() => oneDecimal.format(periodMinutes(props.record.MEAN_MOTION)))
+const details = computed(() => describeCatalogDetails(props.record))
 
 const latitude = computed(() => {
   const value = props.telemetry.latitudeDeg
@@ -94,6 +96,13 @@ const epoch = computed(() =>
       <div>
         <dt>Period</dt>
         <dd>{{ period }} <span>min</span></dd>
+      </div>
+    </dl>
+
+    <dl v-if="details.length > 0" class="panel__details" aria-label="Catalog details">
+      <div v-for="row in details" :key="row.label">
+        <dt>{{ row.label }}</dt>
+        <dd>{{ row.value }}</dd>
       </div>
     </dl>
 
@@ -212,6 +221,33 @@ const epoch = computed(() =>
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-regular);
   color: var(--color-text-secondary);
+}
+
+.panel__details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--surface-border);
+  font-size: var(--font-size-caption);
+}
+
+.panel__details div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.panel__details dt {
+  flex: none;
+  color: var(--color-text-secondary);
+}
+
+.panel__details dd {
+  margin: 0;
+  text-align: right;
 }
 
 .panel__unavailable,

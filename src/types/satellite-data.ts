@@ -13,7 +13,26 @@ export const SCHEMA_VERSION = 1
  * Units are OMM's: MEAN_MOTION in rev/day, angles in degrees, EPOCH in UTC without a
  * `Z` suffix.
  */
-export interface OmmRecord {
+/**
+ * Facts about a satellite from the CelesTrak satellite catalog (SATCAT), as its short
+ * codes. All optional: the catalog is fetched separately from the orbital elements and
+ * a satellite may be missing from it. `composables/catalogDetails.ts` turns the codes
+ * into words.
+ */
+export interface CatalogDetails {
+  /** Owner code, e.g. "US", "PRC", "ESA". */
+  OWNER?: string
+  /** UTC date, "YYYY-MM-DD". */
+  LAUNCH_DATE?: string
+  /** Launch site code, e.g. "AFETR". */
+  LAUNCH_SITE?: string
+  /** "PAY" (payload), "R/B" (rocket body), "DEB" (debris) or "UNK". */
+  OBJECT_TYPE?: string
+  /** Operational status code, e.g. "+" (operational). */
+  OPS_STATUS_CODE?: string
+}
+
+export interface OmmRecord extends CatalogDetails {
   OBJECT_NAME: string
   /** International designator, e.g. "1998-067A". */
   OBJECT_ID: string
@@ -54,6 +73,11 @@ export interface SatelliteFile {
   /** Group name -> NORAD catalog IDs. A satellite can be in several groups or none. */
   groups: Record<GroupName, number[]>
   satellites: OmmRecord[]
+  /**
+   * UTC ISO 8601 with `Z`: when the pipeline last asked CelesTrak for the SATCAT,
+   * whether or not it worked. Absent if it never has.
+   */
+  catalogCheckedAt?: string
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

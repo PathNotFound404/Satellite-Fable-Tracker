@@ -29,16 +29,18 @@ CelesTrak's [usage policy](https://celestrak.org/usage-policy.php) (checked 2026
 | Bandwidth | More than 100 MB/day may get the IP firewalled. |
 | Compression | Request gzip or brotli whenever possible. |
 | Overlap | `starlink` is a subset of `active`, so there is no need to download both. |
+| SATCAT | "The SATCAT updates manually once or twice a day." The same one-download-per-update rule applies; fixed limits are to be enforced "soon". |
 
 ### How this project complies
 
 | Rule | Our design |
 |---|---|
 | Once per update | Schedule is **every 6 hours** (3x the minimum interval). A freshness guard skips the fetch if the live data is less than 2 hours old, which protects manual runs and re-runs. |
-| Only what we need | 4 requests per run: `active`, `stations`, `gps-ops`, `weather`. We do **not** fetch `starlink`; Starlink is tagged by name (see [data contract](data-contract.md#groups)). |
+| Only what we need | 4 GP requests per run: `active`, `stations`, `gps-ops`, `weather`, plus 1 SATCAT request at most once per 24 hours (below). We do **not** fetch `starlink`; Starlink is tagged by name (see [data contract](data-contract.md#groups)). |
 | Stop on error | Requests run one at a time. On the first non-200 response, the script stops: no retries, no further requests, no deploy. |
 | Report to a human | Any non-200 fails the workflow run, and GitHub emails the repo owner. The expected "not updated since your last download" 403 is the one exception: it ends the run as a skip with a warning annotation. |
-| Error budget | At most 1 error per run and 4 runs per day, far below 50 per 2 hours. |
+| Error budget | At most 1 GP error per run and 4 runs per day, plus at most 1 SATCAT error per day, far below 50 per 2 hours. |
+| SATCAT once per update | The file records when the SATCAT was last asked for (`catalogCheckedAt`), success or not. A run asks again only if that is more than 24 hours old; otherwise it reuses the details on the live site. One request, last in the run, no retries. A failure keeps the old details, adds a warning to the run and does not block the orbital data. |
 | Bandwidth | Compressed responses (Node `fetch` sends `Accept-Encoding: gzip, deflate, br`). Roughly a few MB per run, well under 100 MB/day. |
 | Correct URLs | Only `https://celestrak.org/NORAD/elements/gp.php?GROUP=<group>&FORMAT=JSON` (the `.org` domain, no legacy URLs that return 301/404). |
 | Browser never calls CelesTrak | Enforced by design. The app only reads `/data/satellites.json`. |
@@ -133,7 +135,7 @@ On `main`: require a PR, require the `ci` check to pass, no force pushes. Set th
 |---|---|---|
 | Vercel Hobby deployments | 100 per day (all sources count, including previews) | 4 scheduled + own pushes and PRs |
 | Vercel Hobby concurrent builds | 1 | A push during a refresh just waits |
-| CelesTrak requests | Once per group per 2-hour update | 4 requests every 6 hours |
+| CelesTrak requests | Once per group per 2-hour update | 4 requests every 6 hours, plus 1 SATCAT request per day |
 | CelesTrak errors | 50 per 2 hours per IP | At most 1 per run |
 | CelesTrak bandwidth | 100 MB per day | A few MB per run |
 | GitHub Actions minutes | Free for public repos | A few minutes per run |
