@@ -14,6 +14,8 @@ const errorMessage = ref('')
 let started = false
 
 async function load(): Promise<void> {
+  status.value = 'loading'
+  errorMessage.value = ''
   try {
     const response = await fetch(DATA_URL)
     if (!response.ok) throw new Error(`Could not load satellite data (HTTP ${response.status}).`)
@@ -43,5 +45,13 @@ export function useSatellites() {
     started = true
     void load()
   }
-  return { file, status: readonly(status), errorMessage: readonly(errorMessage) }
+  return {
+    file,
+    status: readonly(status),
+    errorMessage: readonly(errorMessage),
+    /** Try the download again after a failure. Does nothing while one is in progress. */
+    retry() {
+      if (status.value === 'error') void load()
+    },
+  }
 }

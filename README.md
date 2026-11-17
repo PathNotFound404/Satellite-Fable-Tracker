@@ -2,40 +2,53 @@
 
 [![ci](https://github.com/PathNotFound404/Satellite-Fable-Tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/PathNotFound404/Satellite-Fable-Tracker/actions/workflows/ci.yml)
 
-Thousands of real satellites moving in real time on an interactive 3D globe. Orbital data comes from [CelesTrak](https://celestrak.org), positions are computed in the browser with SGP4, and everything is drawn in a single three.js point cloud. No backend, no cost.
+About 17,000 real satellites moving in real time on an interactive 3D globe. Orbital data comes from [CelesTrak](https://celestrak.org), positions are computed in the browser with SGP4, and everything is drawn in a single three.js point cloud. No backend, no cost.
 
 **Live site:** https://satellite-fable-tracker.vercel.app
 
-## Status
+![The globe with the ISS selected: its orbit, ground track and details panel](docs/media/screenshot.jpg)
 
-Built in milestones, each one demoable ([roadmap](docs/roadmap.md)).
+## What it does
 
-| # | Milestone | State |
-|---|---|---|
-| 1 | Scaffold, globe, CI, deploy | Done |
-| 2 | Data pipeline | Done: data refreshes from CelesTrak every 6 hours |
-| 3 | Propagate and plot | Done: full catalog moving in real time |
-| 4 | Select, info panel, orbit | Done: click a satellite for live stats and its orbit |
-| 5 | Search and filters | Done: search by name or NORAD ID, group filters with counts |
-| 6 | Stretch features | Time controls, day/night shading, ground track and next-pass predictor and space station glyphs, catalog details and close approaches done |
-| 7 | Polish and README | Not started |
+- **Every active satellite, live.** The full CelesTrak active catalog, refreshed every 6 hours, moving at the right speed in the right place.
+- **Click any satellite** for its altitude, speed, ground position, inclination and period, plus its owner, launch date, launch site, type and status. Its orbit is drawn in blue and its ground track in yellow: solid for the orbit just flown, dashed for the one ahead.
+- **Search and filter.** Search by name or NORAD ID (press `/`). Filter to space stations, Starlink, GPS or weather satellites. Space stations carry their own glyph.
+- **Time controls.** Pause, run up to 1000x, or run backwards; Space toggles pause and "Back to now" returns to live. Day and night follow the simulated time.
+- **Passes over you.** When the selected satellite is above your horizon in the next 7 days, in your local time, with how high it gets. Your location never leaves the browser and is not stored.
+- **Close approaches.** Scans the whole catalog for satellites passing within 50 km of the selected one in the next 24 hours. Select a result to jump to that moment. This is a demonstration, not a collision assessment.
 
-## Using it
+Useful links: `?sat=25544` opens straight on the ISS (any NORAD ID works), and `?debug` shows frame rate and propagation cost.
 
-- Drag to rotate, scroll or pinch to zoom.
-- Click a satellite to see its name, altitude, speed, ground position, inclination and period, its owner, launch date, launch site, type and status, and to draw its orbit (solid blue) and its ground track in yellow: solid for the orbit just flown, dashed for the one ahead. Click empty space or press Esc to clear.
-- With a satellite selected, "Passes over you" lists when it is above your horizon in the next 7 days: rise and set in your local time and how high it gets. Use the browser's location or type coordinates; the location never leaves the browser and is not stored.
-- "Close approaches" scans the whole catalog for satellites passing within 50 km of the selected one in the next 24 hours. Select a result to jump to that moment, with the other satellite ringed in orange. This is approximate and not a collision assessment.
-- Search by name or NORAD ID (press `/` to jump to the search field); choosing a result selects the satellite and swings the camera round to it.
-- Filter to space stations, Starlink, GPS or weather satellites.
-- Pause, fast-forward (up to 1000x) or run time backwards with the bar at the bottom; Space toggles pause, and "Back to now" returns to live.
-- The globe shows day and night for the simulated time, so fast-forwarding sweeps the terminator round the Earth.
-- Link straight to a satellite with `?sat=<NORAD ID>`, for example `?sat=25544` for the ISS.
-- Add `?debug` for a frame rate and propagation cost readout.
+## How it works
+
+```
+CelesTrak ──(GitHub Actions, every 6 h)──> validate ──> static JSON on Vercel ──> browser
+                                                                                    │
+                                              SGP4 (satellite.js) ── TEME→ECF ── one THREE.Points
+```
+
+**Data pipeline.** The browser never calls CelesTrak. A scheduled GitHub Actions workflow downloads the orbital elements (CCSDS OMM in JSON), validates them and deploys them to Vercel as one static file. If a download fails or looks wrong (too few records, malformed records, missing ISS), nothing is deployed and the site keeps the last good data. The workflow follows [CelesTrak's fair-use rules](docs/ci-cd.md#celestrak-fair-use): one download per group per update, stop on the first error, no retries. Data is deployed, never committed ([ADR 0001](docs/adr/0001-deploy-data-with-vercel-cli.md)).
+
+**Orbit math.** Each satellite is propagated in the browser with SGP4 via [satellite.js](https://github.com/shashwatak/satellite-js). SGP4 gives positions in the inertial TEME frame; one function rotates them by Greenwich sidereal time into the Earth-fixed frame so they sit correctly over a turning Earth. `src/orbital/` is pure TypeScript with no Vue or three.js imports, and is tested against independent references: Vallado's published SGP4 verification vectors, solstice and equinox Sun positions, Skyfield pass predictions, and a brute-force close-approach search.
+
+**Rendering.** All satellites are one `THREE.Points` object: one draw call. Running SGP4 for 17,000 satellites every frame costs more than a frame, so each satellite is re-propagated about once a second (a slice of the catalog per frame) and the vertex shader extrapolates its position in between, which keeps motion smooth at any frame rate and at 1000x ([ADR 0002](docs/adr/0002-propagation-strategy.md)). Picking is done in screen space, and three.js objects are kept out of Vue's reactivity.
+
+**Time.** One simulation clock is the only source of "now". Everything that depends on time reads it, so pausing, fast-forwarding and reversing just work everywhere.
+
+More detail: [architecture](docs/architecture.md), [data contract](docs/data-contract.md), [CI/CD](docs/ci-cd.md).
+
+## Accuracy
+
+Treat positions as approximate.
+
+- Public orbital elements are good to about a kilometre when they are issued and drift by kilometres per day. The app shows how old its data is and limits the time controls to 7 days either side of it.
+- Altitude is height above a spherical Earth, within about 20 km of true geodetic height.
+- Pass times ignore atmospheric refraction, and "above the horizon" does not mean visible to the eye.
+- Close approaches are for illustration only. Real conjunction assessment needs far better data than is public.
 
 ## Stack
 
-Vue 3 + Vite + TypeScript, three.js, satellite.js, Vitest, GitHub Actions, Vercel.
+Vue 3 (Composition API) + Vite + TypeScript (strict), three.js, satellite.js, Vitest, ESLint, GitHub Actions, Vercel.
 
 ## Run it locally
 
@@ -50,21 +63,24 @@ npm run dev
 |---|---|
 | Dev server | `npm run dev` |
 | Build | `npm run build` |
+| Preview the build | `npm run preview` |
 | Unit tests | `npm test` |
 | Type check | `npm run typecheck` |
 | Lint | `npm run lint` |
 
-The dev server and build use `public/data/sample.json` (50 satellites) unless a full `public/data/satellites.json` exists. `npm run fetch-data` downloads the full catalog from CelesTrak; please read [CelesTrak fair use](docs/ci-cd.md#celestrak-fair-use) first, since each run counts against your IP.
+The dev server and build use the copy of the data on the live site, or `public/data/sample.json` (50 satellites) if that can't be reached. `npm run fetch-data` downloads the full catalog from CelesTrak; please read [CelesTrak fair use](docs/ci-cd.md#celestrak-fair-use) first, since each run counts against your IP.
 
-## Docs
+## Project docs
 
+- [Roadmap](docs/roadmap.md): milestones and acceptance criteria, including what is still unverified
 - [Project brief](docs/project-brief.md)
 - [Architecture](docs/architecture.md)
 - [Data contract](docs/data-contract.md)
-- [CI/CD plan](docs/ci-cd.md)
+- [CI/CD and CelesTrak fair use](docs/ci-cd.md)
 - [Decisions (ADRs)](docs/adr/)
 
 ## Credits
 
-- Orbital data: [CelesTrak](https://celestrak.org) GP element sets.
+- Orbital data and satellite catalog: [CelesTrak](https://celestrak.org) (Dr. T.S. Kelso). Please respect its [usage policy](https://celestrak.org/usage-policy.php).
+- SGP4 implementation: [satellite.js](https://github.com/shashwatak/satellite-js).
 - Earth imagery: NASA Blue Marble (public domain), via [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Land_ocean_ice_2048.jpg).

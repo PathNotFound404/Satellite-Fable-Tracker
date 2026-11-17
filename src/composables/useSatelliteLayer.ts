@@ -1,5 +1,5 @@
 import { markRaw, onBeforeUnmount, shallowRef, watch, type Ref, type ShallowRef } from 'vue'
-import { buildCatalog, type Catalog } from '../orbital/catalog'
+import { buildCatalogInSlices, type Catalog } from '../orbital/catalog'
 import { createSatelliteLayer, type SatelliteLayer } from '../three/satelliteLayer'
 import type { GlobeScene } from '../three/scene'
 import type { SatelliteFile } from '../types/satellite-data'
@@ -29,8 +29,14 @@ export function useSatelliteLayer(
   const stats = { fps: 0, updateMs: 0, invalid: 0, unreadable: 0 }
 
   let stopFrames: (() => void) | null = null
+  /** Bumped whenever the inputs change, so a catalog build for old inputs is dropped. */
+  let generation = 0
+
+  /** Lets the browser paint and handle input before the next slice of work. */
+  const nextTask = (): Promise<void> => new Promise((resolve) => setTimeout(resolve))
 
   function teardown(): void {
+    generation++
     stopFrames?.()
     stopFrames = null
     if (layer.value !== null) {
@@ -44,11 +50,16 @@ export function useSatelliteLayer(
 
   watch(
     [globeScene, file],
-    ([scene, loadedFile]) => {
+    async ([scene, loadedFile]) => {
       teardown()
       if (scene === null || loadedFile === null) return
 
-      const nextCatalog = markRaw(buildCatalog(loadedFile))
+      // Built in slices so the globe stays responsive while SGP4 is set up for
+      // thousands of satellites.
+      const mine = generation
+      const built = await buildCatalogInSlices(loadedFile, nextTask, () => mine !== generation)
+      if (built === null || mine !== generation) return
+      const nextCatalog = markRaw(built)
       const nextLayer = markRaw(
         createSatelliteLayer(nextCatalog, clock.nowMs(), scene.renderer.getPixelRatio()),
       )

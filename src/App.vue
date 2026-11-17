@@ -28,7 +28,7 @@ import { pickSatellite } from './three/picking'
 import type { GlobeScene } from './three/scene'
 
 const showHint = ref(true)
-const { file, status, errorMessage } = useSatellites()
+const { file, status, errorMessage, retry: retryLoad } = useSatellites()
 
 // Raw three.js scene handle: shallow and marked raw so Vue never proxies it.
 const globeScene = shallowRef<GlobeScene | null>(null)
@@ -252,10 +252,25 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
       />
     </div>
 
+    <Transition name="fade">
+      <section v-if="status === 'error'" class="app__error glass" role="alert">
+        <h2>Satellite data could not be loaded</h2>
+        <p>{{ errorMessage }}</p>
+        <button type="button" @click="retryLoad">Try again</button>
+      </section>
+      <p
+        v-else-if="status === 'loading' || (catalog === null && globeScene !== null)"
+        class="app__loading glass"
+        role="status"
+      >
+        Loading satellites…
+      </p>
+    </Transition>
+
     <DebugReadout v-if="showDebug" class="app__debug" :stats="stats" />
 
     <Transition name="fade">
-      <p v-if="showHint && !selectedRecord" class="app__hint glass">
+      <p v-if="showHint && !selectedRecord && status === 'ready' && globeScene !== null" class="app__hint glass">
         Drag to rotate · Scroll to zoom · Click a satellite
       </p>
     </Transition>
@@ -361,6 +376,50 @@ const showDebug = new URLSearchParams(window.location.search).has('debug')
   color: var(--color-text-secondary);
   white-space: nowrap;
   pointer-events: none;
+}
+
+.app__error,
+.app__loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  text-align: center;
+}
+
+.app__loading {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  pointer-events: none;
+}
+
+.app__error {
+  width: min(420px, calc(100% - var(--inset-left) - var(--inset-right)));
+  padding: var(--space-6);
+}
+
+.app__error h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+}
+
+.app__error p {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-secondary);
+}
+
+.app__error button {
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
 }
 
 .fade-enter-active,
