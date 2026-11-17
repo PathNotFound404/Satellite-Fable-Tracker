@@ -154,7 +154,7 @@ function peakTimeMs(satrec: SatRec, frame: ObserverFrame, fromMs: number, toMs: 
  * Lists the satellite's passes over `observer` in the window starting at `startUnixMs`,
  * earliest first.
  *
- * About 3,000 SGP4 calls for the default 24 hours, a few milliseconds: fine to run on
+ * About 3,000 SGP4 calls per 24 hours searched, a few milliseconds: fine to run on
  * the main thread when the selection or location changes, but not every frame. If
  * propagation fails part-way (a decaying satellite), passes found up to then are
  * returned.

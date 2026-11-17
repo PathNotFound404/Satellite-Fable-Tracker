@@ -134,13 +134,14 @@ Proposed order, easiest and most visible first. Reorder freely.
 
    Acceptance criteria (agreed 2026-11-16):
    - [x] The info panel has a "Passes over you" section with a button that asks the browser for the location, and typed latitude and longitude as the fallback.
-   - [x] It lists the selected satellite's passes for the next 24 hours of simulation time: rise and set in local time, and peak elevation.
+   - [x] It lists the selected satellite's passes for the next 7 days of simulation time (24 hours at first; extended 2026-11-16 at the owner's request): rise and set in local time, and peak elevation. The soonest five are shown, with the rest one click away.
    - [x] Only passes that peak above 10 degrees are listed.
    - [x] Rise and set times are within about a minute of an independent prediction (unit-tested against Skyfield for two satellites and two locations; they agree within 5 s).
    - [x] The location stays in the browser, is not stored, and the UI says so.
-   - [x] The search does not drop frames (measured at 2 to 3 ms per 24-hour search).
+   - [x] The search does not hold up rendering: about 15 ms for a 7-day search, run when the selection or location changes and then at most once per hour of simulation time.
 5. **Conjunction highlighting:** flag close approaches below a threshold. Clearly labeled as approximate (GP data is not suitable for real collision assessment).
 6. **Space station icon** (owner idea, 2026-11-16): draw members of the `stations` group with a small station glyph instead of a dot. One icon per cluster, since each docked module is a separate catalog entry; ordinary satellites stay in the single points object.
+7. **Catalog details** (owner request, 2026-11-16): owner country, launch date, launch site and object type in the info panel. The GP data has none of these; they come from the CelesTrak satellite catalog (SATCAT), so this needs one more download per pipeline run and a change to the fetch script and the data contract, to be agreed before work starts.
 
 Each stretch feature needs its own acceptance criteria written before work starts.
 

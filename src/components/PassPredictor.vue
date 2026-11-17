@@ -45,7 +45,11 @@ function submit(): void {
 }
 
 const where = computed(() => (props.location === null ? '' : formatObserver(props.location)))
+/** A week of a low orbit is dozens of passes; show the soonest and offer the rest. */
+const COLLAPSED_COUNT = 5
+const showAll = ref(false)
 const labels = computed(() => (props.passes ?? []).map((pass) => ({ key: pass.riseMs, ...describePass(pass) })))
+const shownLabels = computed(() => (showAll.value ? labels.value : labels.value.slice(0, COLLAPSED_COUNT)))
 </script>
 
 <template>
@@ -53,7 +57,7 @@ const labels = computed(() => (props.passes ?? []).map((pass) => ({ key: pass.ri
     <h3>Passes over you</h3>
 
     <template v-if="location === null">
-      <p class="passes__note">See when this satellite is above your horizon in the next 24 hours.</p>
+      <p class="passes__note">See when this satellite is above your horizon in the next 7 days.</p>
 
       <div class="passes__actions">
         <button
@@ -100,19 +104,29 @@ const labels = computed(() => (props.passes ?? []).map((pass) => ({ key: pass.ri
       </p>
 
       <ol v-if="labels.length > 0" class="passes__list numeric">
-        <li v-for="label in labels" :key="label.key" :class="{ 'passes__item--now': label.now }">
+        <li v-for="label in shownLabels" :key="label.key" :class="{ 'passes__item--now': label.now }">
           <span>{{ label.when }}</span>
           <span class="passes__peak">Peak {{ label.peakDeg }}°</span>
         </li>
       </ol>
+      <button
+        v-if="labels.length > COLLAPSED_COUNT"
+        class="passes__link passes__more"
+        type="button"
+        :aria-expanded="showAll"
+        @click="showAll = !showAll"
+      >
+        {{ showAll ? 'Show fewer' : `Show all ${labels.length}` }}
+      </button>
       <p v-else-if="passes !== null" class="passes__note">
-        No passes higher than 10° in the next 24 hours.
+        No passes higher than 10° in the next 7 days.
       </p>
       <p v-else class="passes__note">No passes to show: this satellite has no current position.</p>
 
       <p class="passes__note">
-        Your local time. Above the horizon does not always mean visible to the eye. Your location
-        stays in this browser and is not saved.
+        Next 7 days, in your local time. Times several days ahead can be off by minutes. Above the
+        horizon does not always mean visible to the eye. Your location stays in this browser and is
+        not saved.
       </p>
     </template>
   </section>
@@ -242,6 +256,10 @@ const labels = computed(() => (props.passes ?? []).map((pass) => ({ key: pass.ri
   color: var(--color-accent);
   font-size: var(--font-size-caption);
   cursor: pointer;
+}
+
+.passes__more {
+  align-self: flex-start;
 }
 
 .passes__list {
