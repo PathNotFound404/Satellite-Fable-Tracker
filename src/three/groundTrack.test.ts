@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
-import { Vector3, type Line } from 'three'
+import { Vector3 } from 'three'
+import type { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
 import { describe, expect, it } from 'vitest'
 import { buildCatalog } from '../orbital/catalog'
 import { MS_PER_MINUTE } from '../orbital/constants'
@@ -28,19 +29,32 @@ function satelliteDirection(timeMs: number): Vector3 {
   return new Vector3(scene[0], scene[1], scene[2]).normalize()
 }
 
-function trackLine(visuals: ReturnType<typeof createSelectionVisuals>): Line {
-  return visuals.object.getObjectByName('ground-track') as Line
+type Visuals = ReturnType<typeof createSelectionVisuals>
+
+function trackLine(visuals: Visuals, half: 'past' | 'ahead'): LineSegments2 {
+  return visuals.object.getObjectByName('ground-track-' + half) as LineSegments2
 }
 
-function trackVertices(visuals: ReturnType<typeof createSelectionVisuals>): Vector3[] {
-  const line = trackLine(visuals)
+/** The points of one half in order: the start of each segment, then the last end. */
+function halfVertices(visuals: Visuals, half: 'past' | 'ahead'): Vector3[] {
+  const line = trackLine(visuals, half)
   visuals.object.updateMatrixWorld(true)
-  const position = line.geometry.getAttribute('position')
+  const starts = line.geometry.getAttribute('instanceStart')
+  const ends = line.geometry.getAttribute('instanceEnd')
+  const count = line.geometry.instanceCount
   const vertices: Vector3[] = []
-  for (let i = 0; i < line.geometry.drawRange.count; i++) {
-    vertices.push(new Vector3().fromBufferAttribute(position, i).applyMatrix4(line.matrixWorld))
+  for (let i = 0; i < count; i++) {
+    vertices.push(new Vector3().fromBufferAttribute(starts, i).applyMatrix4(line.matrixWorld))
+  }
+  if (count > 0) {
+    vertices.push(new Vector3().fromBufferAttribute(ends, count - 1).applyMatrix4(line.matrixWorld))
   }
   return vertices
+}
+
+/** The whole track, oldest point first. The two halves share the middle point. */
+function trackVertices(visuals: Visuals): Vector3[] {
+  return [...halfVertices(visuals, 'past'), ...halfVertices(visuals, 'ahead').slice(1)]
 }
 
 /** Shortest distance from `point` to the polyline through `vertices`, km. */
@@ -131,23 +145,77 @@ describe('ground track in the selection visuals', () => {
     visuals.update(START_MS, null)
     const before = trackVertices(visuals)[100]!.clone()
 
-    visuals.update(START_MS + 15_000, null)
+    visuals.update(START_MS + 3_000, null)
     expect(trackVertices(visuals)[100]!.distanceTo(before)).toBe(0)
-    expect(trackLine(visuals).rotation.y).toBe(0)
+    expect(trackLine(visuals, 'past').rotation.y).toBe(0)
+    expect(trackLine(visuals, 'ahead').rotation.y).toBe(0)
     visuals.dispose()
   })
 
-  it('carries distances along the line for the dashes', () => {
+  it('shows direction: solid behind the satellite, dashed ahead, joined at the present', () => {
     const visuals = createSelectionVisuals(1)
     visuals.setTarget(iss)
     visuals.update(START_MS, null)
 
-    const distances = trackLine(visuals).geometry.getAttribute('lineDistance')
-    expect(distances.getX(0)).toBe(0)
-    for (let i = 1; i < 361; i++) expect(distances.getX(i)).toBeGreaterThan(distances.getX(i - 1))
-    // Two orbits of ground track is a bit under two circumferences (4 pi radii).
-    expect(distances.getX(360)).toBeGreaterThan(11)
-    expect(distances.getX(360)).toBeLessThan(4 * Math.PI * 1.003)
+    const past = halfVertices(visuals, 'past')
+    const ahead = halfVertices(visuals, 'ahead')
+    expect(past).toHaveLength(181)
+    expect(ahead).toHaveLength(181)
+    const now = satelliteDirection(START_MS)
+    expect(past[180]!.angleTo(now)).toBeLessThan(1e-4)
+    expect(ahead[0]!.distanceTo(past[180]!)).toBe(0)
+    expect(past[0]!.angleTo(satelliteDirection(START_MS - PERIOD_MS))).toBeLessThan(1e-4)
+    expect(ahead[180]!.angleTo(satelliteDirection(START_MS + PERIOD_MS))).toBeLessThan(1e-4)
+
+    const pastMaterial = trackLine(visuals, 'past').material
+    const aheadMaterial = trackLine(visuals, 'ahead').material
+    expect(pastMaterial.dashed).toBe(false)
+    expect(aheadMaterial.dashed).toBe(true)
+    expect(aheadMaterial.opacity).toBeGreaterThan(pastMaterial.opacity)
+    visuals.dispose()
+  })
+
+  it('is two pixels wide and not white or the accent colour', () => {
+    const visuals = createSelectionVisuals(1)
+    for (const half of ['past', 'ahead'] as const) {
+      const material = trackLine(visuals, half).material
+      expect(material.linewidth).toBe(2)
+      expect(material.worldUnits).toBe(false)
+      expect(material.color.getHex()).toBe(0xffd60a)
+    }
+    visuals.dispose()
+  })
+
+  it('keeps the join close to the satellite as time runs', () => {
+    const visuals = createSelectionVisuals(1)
+    visuals.setTarget(iss)
+    for (let timeMs = START_MS; timeMs < START_MS + 60_000; timeMs += 500) {
+      visuals.update(timeMs, null)
+      const join = halfVertices(visuals, 'ahead')[0]!
+      const below = satelliteDirection(timeMs).multiplyScalar(1.003)
+      // The ISS covers about 7.2 km of ground per second; the track is re-centred
+      // every 5 s.
+      expect(sceneToKm(join.distanceTo(below))).toBeLessThan(40)
+    }
+    visuals.dispose()
+  })
+
+  it('carries distances along the dashed half, starting from the satellite', () => {
+    const visuals = createSelectionVisuals(1)
+    visuals.setTarget(iss)
+    visuals.update(START_MS, null)
+
+    const geometry = trackLine(visuals, 'ahead').geometry
+    const starts = geometry.getAttribute('instanceDistanceStart')
+    const ends = geometry.getAttribute('instanceDistanceEnd')
+    expect(starts.getX(0)).toBe(0)
+    for (let i = 0; i < 180; i++) {
+      expect(ends.getX(i)).toBeGreaterThan(starts.getX(i))
+      if (i > 0) expect(starts.getX(i)).toBe(ends.getX(i - 1))
+    }
+    // One orbit of ground track is a bit under one circumference (2 pi radii).
+    expect(ends.getX(179)).toBeGreaterThan(5.5)
+    expect(ends.getX(179)).toBeLessThan(2 * Math.PI * 1.003)
     visuals.dispose()
   })
 
@@ -156,7 +224,8 @@ describe('ground track in the selection visuals', () => {
     visuals.setTarget(iss)
     visuals.update(START_MS, null)
     visuals.setTarget(null)
-    expect(trackLine(visuals).geometry.drawRange.count).toBe(0)
+    expect(trackLine(visuals, 'past').geometry.instanceCount).toBe(0)
+    expect(trackLine(visuals, 'ahead').geometry.instanceCount).toBe(0)
     visuals.dispose()
   })
 })
